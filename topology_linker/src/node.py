@@ -1,7 +1,10 @@
 from typing import List
-
+import pandas as pd
+from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_ordb
 class Node:
-    def __init__(self, object_name: str = 'root', object_description: str ='root',
+    def __init__(self, object_name: str = 'root',
+                 object_description: str ='root',
+                 object_id: str = 'root',
                  children: list = None, parent: object = None):
         """
         :type children: List[Node]
@@ -12,7 +15,11 @@ class Node:
         self.parent = parent
         self.object_name = object_name
         self.object_description = object_description
-        self.object_id = None
+        #self.object_id = str(object_id)
+        try:
+            self.object_id = get_data_ordb(f"Select OBJECT_NO From OBJECT WHERE OBJECT_NAME = '{object_name}'").iloc[0,0]
+        except:
+            self.object_id = str(object_name)
 
     def get_children_as_dict(self):
         dict_out = dict()
@@ -25,7 +32,7 @@ class Node:
 
     def __str__(self):
         out = ""
-        rep = f"{self.object_name} - {self.object_description}"
+        rep = f"{self.object_name} - {self.object_description} ({self.object_id})"
         out += rep+"\n"
 
         for i, v in enumerate(self.children):
@@ -36,7 +43,6 @@ class Node:
             else:
                 out += padding * padding_str + '├─── ' + v.__str__()
         return out
-
 
     def get_depth(self):
         if self.parent is None:
@@ -51,3 +57,27 @@ class Node:
         else:
             self.children.append(childNode)
             childNode.parent = self
+
+    def as_df(self):
+        df = {
+            "OBJECT_ID":[],
+            "LINK_OBJECT_ID":[],
+            "LINK_DESCRIPTION":[]
+        }
+        df = pd.DataFrame(df)
+
+        for i, v in enumerate(self.children):
+            if len(v.children) > 0:
+                df = pd.concat([df, v.as_df()])
+            df = df.append({
+                "OBJECT_ID": str(self.object_id),
+                "LINK_OBJECT_ID": str(v.object_id),
+                "LINK_DESCRIPTION": str(v.object_description)
+            },
+            ignore_index=True)
+
+        return df
+
+
+
+
