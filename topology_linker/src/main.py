@@ -86,7 +86,7 @@ def build_lateral(lateral_key:str) -> Node:
 #Start building the tree data structure
 root = Node('LVBC', 'Main Channel', object_id='214362')
 current_reg = None
-print(headings.items())
+
 for index, values in main_channel.iterrows():
     #PATTERN FOR REGULATOR: in headings, asset code starts with RG-
     #PATTERN FOR ESCAPE: in headings, asset code starts with ES-
