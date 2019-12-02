@@ -38,10 +38,20 @@ class Node:
         for i, v in enumerate(self.children):
             padding = self.get_depth()
             padding_str = '│    '
+            padding_str_blank = '     '
+            blank_padding = 0
+            chld = v.__str__()
+            at_end = self.parent.children.index(self) == len(self.parent.children) - 1 \
+                if self.parent is not None else False
+            if at_end:
+                padding -= 1
+                blank_padding = 1
+            out += padding * padding_str + blank_padding * padding_str_blank
             if i == len(self.children) - 1:
-                out += padding * padding_str + '└─── ' + v.__str__()
+                out += '└─── '
             else:
-                out += padding * padding_str + '├─── ' + v.__str__()
+                out += '├─── '
+            out += chld
         return out
 
     def get_depth(self):

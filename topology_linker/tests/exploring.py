@@ -1,15 +1,20 @@
 import topology_linker.res.FGinvestigation.fginvestigation.extraction as ext
 
-query = ("SELECT OBJECT_NO, ASSET_CODE, SITE_NAME"
-        f" FROM V_D_SITE_DETAILS WHERE SITE_NAME = 'MC10 CAMPBELLS SWAMP ESC'")
+query = ("SELECT *"
+        f" FROM OBJECT WHERE OBJECT_NAME IN "
+        f" ('MC10')")
 
 # query = (
-#         f"Select * From OBJECT WHERE OBJECT_NAME = 'MC10 CAMPBELLS SWAMP ESC'"
+#         f"Select OBJECT.OBJECT_NO, ATTRIBUTE_VALUE, OBJECT_NAME "
+#         f" From OBJECT_ATTR_VALUE INNER JOIN OBJECT"
+#         f" ON OBJECT_ATTR_VALUE.OBJECT_NO = OBJECT.OBJECT_NO"
+#         f" WHERE OBJECT_NAME IN ('MC10')"
+#         f" AND ATTRIBUTE_TYPE = '117'"
 # )
 
 obj_data = ext.get_data_ordb(query)
 
-print(obj_data)
+print(obj_data.to_string())
 #list of all regs in the database
 # all_regs = obj_data['SITE_NAME'].unique()
 #
