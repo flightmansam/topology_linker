@@ -36,17 +36,19 @@ class Node:
         out += rep+"\n"
 
         for i, v in enumerate(self.children):
-            padding = self.get_depth()
             padding_str = '│    '
             padding_str_blank = '     '
             blank_padding = 0
             chld = v.__str__()
-            at_end = self.parent.children.index(self) == len(self.parent.children) - 1 \
-                if self.parent is not None else False
-            if at_end:
-                padding -= 1
-                blank_padding = 1
-            out += padding * padding_str + blank_padding * padding_str_blank
+            padding = self.at_end_array()
+            padding = [padding_str_blank if i is True else padding_str for i in padding]
+            out += "".join(padding)
+            # at_end = self.parent.children.index(self) == len(self.parent.children) - 1 \
+            #     if self.parent is not None else False
+            # if at_end:
+            #     blank_padding = padding
+            #     padding = 0
+            # out += padding * padding_str + blank_padding * padding_str_blank
             if i == len(self.children) - 1:
                 out += '└─── '
             else:
@@ -58,6 +60,16 @@ class Node:
         if self.parent is None:
             return 0
         else: return 1 + self.parent.get_depth()
+
+    def at_end_array(self):
+        """Returns an array of booleans as to whether the parent at each level
+         is at the end of the chain or not from thr root at index 0 to the node at level n at index n"""
+        if self.parent is None:
+            #root is next
+            return []
+        else:
+            return self.parent.at_end_array() + [self.parent.children.index(self) == len(self.parent.children) - 1]
+
 
     def addNode(self, childNode):
         if isinstance(childNode, list):

@@ -85,6 +85,7 @@ def build_lateral(lateral_key:str) -> Node:
 
 #Start building the tree data structure
 root = Node('LVBC', 'Main Channel', object_id='214362')
+previous_reg = root
 current_reg = None
 
 for index, values in main_channel.iterrows():
@@ -98,7 +99,8 @@ for index, values in main_channel.iterrows():
             if asset_code[0].startswith('RG-'):
                 # new regulator
                 if current_reg is not None:
-                    root.addNode(current_reg)
+                    previous_reg.addNode(current_reg)
+                    previous_reg = current_reg
                 current_reg = Node(values["Regulator Number"], __US_REG)
             elif asset_code[0].startswith('ES-'):
                 # escape
@@ -115,7 +117,7 @@ for index, values in main_channel.iterrows():
     if pd.notna(values[2]):
         current_reg.addNode(Node(values['Outlet'].strip(), __DS_METER))
 
-root.addNode(current_reg) # add the last regulator in the file
+previous_reg.addNode(current_reg) # add the last regulator in the file
 
 print(root)
 print(root.as_df().to_string())
