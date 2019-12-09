@@ -1,10 +1,12 @@
+from constants import OBJECT, LINK_OBJECT, LINK_DESCRIPTION, POSITION
 from typing import List
 import pandas as pd
 from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_ordb
+
 class Node:
     def __init__(self, object_name: str = 'root',
                  object_description: str ='root',
-                 object_id: str = 'root',
+                 object_no: str = 'root',
                  children: list = None, parent: object = None):
         """
         :type children: List[Node]
@@ -15,11 +17,12 @@ class Node:
         self.parent = parent
         self.object_name = object_name
         self.object_description = object_description
+        self.index = None
         #self.object_id = str(object_id)
         try:
-            self.object_id = get_data_ordb(f"Select OBJECT_NO From OBJECT WHERE OBJECT_NAME = '{object_name}'").iloc[0,0]
+            self.object_no = get_data_ordb(f"Select OBJECT_NO From OBJECT WHERE OBJECT_NAME = '{object_name}'").iloc[0, 0] if object_name != 'root' else object_no
         except:
-            self.object_id = str(object_name)
+            self.object_no = str(object_name)
 
     def get_children_as_dict(self):
         dict_out = dict()
@@ -32,7 +35,7 @@ class Node:
 
     def __str__(self):
         out = ""
-        rep = f"{self.object_name} - {self.object_description} ({self.object_id})"
+        rep = f"{self.object_name} - {self.object_description} ({self.object_no}) [{self.index}]"
         out += rep+"\n"
 
         for i, v in enumerate(self.children):
@@ -75,30 +78,40 @@ class Node:
         if isinstance(childNode, list):
             for i in childNode:
                 self.children.append(i)
+                i.index = len(self.children) - 1
                 i.parent = self
+
         else:
             self.children.append(childNode)
+            childNode.index = len(self.children) - 1
             childNode.parent = self
 
     def as_df(self):
         df = {
-            "OBJECT_ID":[],
-            "LINK_OBJECT_ID":[],
-            "LINK_DESCRIPTION":[]
+            OBJECT:[],
+            LINK_OBJECT:[],
+            LINK_DESCRIPTION:[],
+            POSITION:[]
         }
         df = pd.DataFrame(df)
 
-        for i, v in enumerate(self.children):
-            if len(v.children) > 0:
-                df = pd.concat([df, v.as_df()])
+        for i, child in enumerate(self.children):
+            if len(child.children) > 0:
+                df = pd.concat([df, child.as_df()])
             df = df.append({
-                "OBJECT_ID": str(self.object_id),
-                "LINK_OBJECT_ID": str(v.object_id),
-                "LINK_DESCRIPTION": str(v.object_description)
+                OBJECT: str(self.object_no),
+                LINK_OBJECT: str(child.object_no),
+                LINK_DESCRIPTION: str(child.object_description),
+                POSITION: str(child.index)
             },
             ignore_index=True)
 
         return df
+
+    def get_last_child(self):
+        if len(self.children) > 0:
+            return self.children[-1].get_last_child()
+        return self
 
 
 
