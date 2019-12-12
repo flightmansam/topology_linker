@@ -166,3 +166,40 @@ def get_linked_ojects(object_A:str, object_B:str, encoding:str = "OBJECT_NO", so
 
 
     return build(object_B), objects
+
+def subtract_one_month(dt0:pd.datetime):
+    dt1 = dt0.replace(day=1)
+    dt2 = dt1 - pd.Timedelta(days=1)
+    dt3 = dt2.replace(day=1)
+    return dt3
+
+def not_monotonic(df:pd.DataFrame, col:str) -> pd.Series:
+    bool_array = []
+    sensitivity = 1.0 # this lowers the sensitivity of the filter (i.e. values within this range will still be considered as monotonic increasing)
+    vals = df[col].values
+    for index, val in enumerate(vals[:-1]):
+        #check to see if value is greater than the next n values (this filters out random zeros and weird float decimal point changes)
+        n = 100
+        n = n if index < len(vals) - n else len(vals) - index
+        #get the proceeding n values
+        v = vals[index + 1 : index + 1 + n] < val - sensitivity
+        bool_array.append(v.all())
+    return pd.Series(bool_array + [False]) #last value cannont be checked for monoticity
+
+
+def fix_resets(df:pd.DataFrame) -> pd.DataFrame:
+    working_df = df.reset_index()
+    pattern = working_df.ne(0.0).any(1) & working_df.shift(-1).eq(0.0).any(1)
+    pattern = not_monotonic(working_df, "EVENT_VALUE")
+
+    jumps_to_zero = working_df[pattern] #this grabs the value just prior to whenever the pattern goes from high to low
+
+    #address the latest jumps first (go backwards)
+    for index, row in jumps_to_zero.iloc[::-1].iterrows():
+        if row["EVENT_VALUE"] != 0.0:
+            #this is a jump! - we need to sum this number to all the dates ahead of it
+            slice = working_df.loc[working_df["EVENT_TIME"] > row["EVENT_TIME"], "EVENT_VALUE"]
+            slice += row["EVENT_VALUE"]
+            working_df.loc[working_df["EVENT_TIME"] > row["EVENT_TIME"], "EVENT_VALUE"] = slice
+
+    return working_df

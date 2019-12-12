@@ -1,5 +1,5 @@
 import topology_linker.res.FGinvestigation.fginvestigation.extraction as ext
-from utils import parse, get_linked_ojects
+from utils import get_linked_ojects, fix_resets, not_monotonic
 import scipy.integrate as integrate
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,25 +8,49 @@ import matplotlib.pyplot as plt
 #         f" FROM OBJECT WHERE OBJECT_NO IN "
 #         f" ('219201')")
 #
+
+
+period_start = (pd.datetime(year=2019, month=1, day=9, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
 query = (
         f"Select *"
         f" From SC_EVENT_LOG"
         f" WHERE TAG_ID IN ("
         f" SELECT TAG_ID FROM SC_TAG WHERE"
-        f" OBJECT_NO IN ('141752'))"
-        f" ORDER BY EVENT_TIME DESC"
-        f" FETCH NEXT 20 ROWS ONLY"
+        f" OBJECT_NO IN ('29355')"
+        f" AND TAG_NAME = 'FLOW_ACU_SR')"  
+        f" AND EVENT_TIME > TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
+        f" ORDER BY EVENT_TIME"
+
 )
 
 query = (
         f"Select *"
-        f" From SC_TAG"
-        f" WHERE OBJECT_NO IN ('30862')"
-
+        f" From SC_EVENT_LOG"
+        f" WHERE TAG_ID IN ("
+        f" SELECT TAG_ID FROM SC_TAG WHERE"
+        f" OBJECT_NO IN ('29355')"
+        f" AND TAG_NAME = 'FLOW_ACU_SR')"  
+        f" AND EVENT_TIME > TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
+        f" ORDER BY EVENT_TIME"
 )
-obj_data = ext.get_data_ordb(query)
-print()
+
+# query = (
+#         f"Select *"
+#         f" From SC_TAG"
+#         f" WHERE OBJECT_NO IN ('64615')"
 #
+# )
+obj_data = ext.get_data_ordb(query)
+obj_data.set_index("EVENT_TIME", inplace=True)
+ax = obj_data["EVENT_VALUE"].plot(label="OLD")
+
+print()
+
+df = fix_resets(obj_data)
+df.set_index("EVENT_TIME", inplace=True)
+df["EVENT_VALUE"].plot(ax=ax, label="NEW")
+plt.legend()
+plt.show()
 from utils import query
 obj_data = query('219201', by='OBJECT_NO')
 
@@ -64,7 +88,7 @@ query = (f"SELECT TAG_ID, EVENT_TIME, EVENT_VALUE "
                              f" ( SELECT TAG_ID FROM SC_TAG WHERE"
                              f" OBJECT_NO IN {tuple(link_list)} AND TAG_NAME = 'FLOW_VAL')"
                              f" AND EVENT_TIME > TO_DATE('{period_end}', 'YYYY-MM-DD HH24:MI:SS')"
-                             f"AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
+                             f" AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
                              f" ORDER BY EVENT_TIME DESC")
 
 query = (f"SELECT OBJECT_NO, SC_EVENT_LOG.EVENT_TIME, SC_EVENT_LOG.EVENT_VALUE "

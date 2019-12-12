@@ -1,5 +1,5 @@
-from constants import OBJECT, LINK_OBJECT, LINK_DESCRIPTION, POSITION
-from typing import List
+from constants import OBJECT, LINK_OBJECT, LINK_DESCRIPTION, POSITION, DS_METER
+from typing import List, Union
 import pandas as pd
 from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_ordb
 
@@ -112,6 +112,16 @@ class Node:
         if len(self.children) > 0:
             return self.children[-1].get_last_child()
         return self
+
+    def get_all_of_desc(self, desc: Union[str, list] = DS_METER):
+        if isinstance(desc, str):
+            desc = [desc]
+        out = []
+        for child in self.children:
+            if child.object_description in desc:
+                out.append(child.object_no)
+            out += child.get_all_of_desc(desc)
+        return out
 
 
 
