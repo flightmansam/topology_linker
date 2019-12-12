@@ -28,7 +28,7 @@ query = (
         f" From SC_EVENT_LOG"
         f" WHERE TAG_ID IN ("
         f" SELECT TAG_ID FROM SC_TAG WHERE"
-        f" OBJECT_NO IN ('29355')"
+        f" OBJECT_NO IN ('64627')"
         f" AND TAG_NAME = 'FLOW_ACU_SR')"  
         f" AND EVENT_TIME > TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
         f" ORDER BY EVENT_TIME"
