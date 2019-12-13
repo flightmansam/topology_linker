@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 import pandas as pd
 
-upstream_point = '29355'
-downstream_point = '30239'
+upstream_point = '47528'
+downstream_point = '67507'
 period_end = (pd.datetime(year=2019, month=10, day=9, hour=00))
 period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
 #period_start = (pd.datetime.now() - pd.Timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
@@ -83,7 +83,7 @@ for _ in range(1):
                     plt.legend()
                     plt.title(link_obj)
                     plt.show()
-                    integral = (df.tail(1)["EVENT_VALUE"].iat[0] - df.head(1)["EVENT_VALUE"].iat[0]) * 1000
+                    integral = (df["EVENT_VALUE"].max() - df.head(1)["EVENT_VALUE"].iat[0]) * 1000
 
                 else:
                     # USING TRAPEZOIDAL INTEGRATION OF FLOW

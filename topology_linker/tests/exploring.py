@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 #
 
 
-period_start = (pd.datetime(year=2019, month=1, day=9, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
+period_start = (pd.datetime(year=2018, month=1, day=9, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
 query = (
         f"Select *"
         f" From SC_EVENT_LOG"
@@ -28,7 +28,7 @@ query = (
         f" From SC_EVENT_LOG"
         f" WHERE TAG_ID IN ("
         f" SELECT TAG_ID FROM SC_TAG WHERE"
-        f" OBJECT_NO IN ('64627')"
+        f" OBJECT_NO IN ('64783')"
         f" AND TAG_NAME = 'FLOW_ACU_SR')"  
         f" AND EVENT_TIME > TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
         f" ORDER BY EVENT_TIME"
