@@ -1,3 +1,12 @@
+"""Utility that can parse an input branch summary csv (that has been modified and standardised to include lateral definitions).
+It builds the topology of the branch and generates a linkage table that describes relationships between regulators, meters, offtakes, escapes and scour valves.
+The linkage is built as a pandas dataframe that can be uploaded to a database (currently not implemented)
+
+The standardisation of the input csv is described in the src readme.md"""
+
+__author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
+__email__ = "samuel.hutchinson@mirrigation.com.au"
+
 from constants import file_path, DS_METER, US_REG, DS_ESC, DS_OFFTAKE, DS_SV
 from node import Node
 from utils import parse, query
@@ -85,6 +94,8 @@ previous_reg.addNode(current_reg) # add the last regulator in the file
 print(root)
 df = root.as_df()
 print(df.to_string())
-df.to_csv("../out/LINKED.csv")
+#df.to_csv("../out/LINKED.csv")
+
+#this is where you can send to the database this linkage df
 
 

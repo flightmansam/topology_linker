@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 import pandas as pd
 
-upstream_point = '47528'
-downstream_point = '67507'
+upstream_point = '29355'
+downstream_point = '30239'
 period_end = (pd.datetime(year=2019, month=10, day=9, hour=00))
 period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
 #period_start = (pd.datetime.now() - pd.Timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
@@ -17,7 +17,7 @@ if export: fh = open("../out/WATER_USAGE.csv", 'w', newline='')
 
 
 #NORMALLY this df would be fetched by pulling down the linked table from SQL
-df = pd.read_csv("../out/LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', 'LINK_DESCRIPTION'], dtype={'OBJECT_NO':str,  'LINK_OBJECT_NO':str, 'LINK_DESCRIPTION':str})
+df = pd.read_csv("../out/LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', 'LINK_DESCRIPTION', 'POSITION'], dtype={'OBJECT_NO':str,  'LINK_OBJECT_NO':str, 'LINK_DESCRIPTION':str})
 
 link, link_list = get_linked_ojects(object_A=upstream_point,
                                         object_B=downstream_point,

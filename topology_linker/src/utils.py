@@ -1,12 +1,20 @@
+"""Somewhat non-specific tools pertinent to the topology linkage and water balance project"""
+
+__author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
+__email__ = "samuel.hutchinson@mirrigation.com.au"
+
 from typing import Tuple
 import pandas as pd
 from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_ordb
 from node import Node
 
 def parse(file_path:str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """Splits the csv into section 1. and section 2. as described in the readme
+    :returns dataframes of each with the branch/lateral as the column"""
     with open(file_path, 'r', encoding="UTF-8") as fh:
         start_index = 0
         for line in fh.readlines():
+            #find the start of the data (instead of just skipping "n" rows)
             if line.__contains__("Regulator Number"):
                 break
             start_index += 1
@@ -39,20 +47,18 @@ def parse(file_path:str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     lateral_descriptions[branch] = pd.DataFrame(lateral_descriptions[branch]) #covert last branch to df
     main_channel = pd.DataFrame(main_channel, columns=row.keys())
 
-    #print(lateral_descriptions)
-
-    # for index, row in csv_df.iloc[:main_channel_last_index].iterrows():
-    #     print(row)
     return main_channel, lateral_descriptions
 
 def query(headings: tuple, by:str = 'OBJECT_NAME') -> pd.DataFrame:
+    """Looks at the input heading and infers whether the heading is an OBJECT_NO or OBJECT_NAME using the "by" parameter
+    uses the production database to find all naming information about that object"""
     # query = ("SELECT OBJECT_NO, ASSET_CODE, SITE_NAME, VALUE"
     #         f" FROM V_D_SITE_DETAILS WHERE SITE_NAME IN "
     #         f" {headings}"
     #         f" AND ATTRIBUTE = 'Channel Name'")
 
     if isinstance(headings, str):
-        #assuming if string only one item
+        #assuming string only one item
         headings = "('"+headings+"')"
     if by == 'OBJECT_NO':
         by = 'OBJECT.OBJECT_NO'
@@ -93,11 +99,16 @@ def query(headings: tuple, by:str = 'OBJECT_NAME') -> pd.DataFrame:
 
 def get_linked_ojects(object_A:str, object_B:str, encoding:str = "OBJECT_NO", source:pd.DataFrame = None):
     """
-    Will return a topology of objects in a pool between object_A and object_B
+    Will return a topology of objects in a pool between object_A and object_B. edward tufte
+
+    This function recursively ascends (build()) the network topology until it finds object_A,
+    all the while building the tree structure of the network between object_B and object_A by
+    recursively searching (explore()) the structure at each level.
+
     :param object_A: the identifier of the upstream object
     :param object_B: the identifier of the downstream object
     :param encoding: valid options 'OBJECT_NO', 'SITE_NAME', 'ASSET_CODE'
-    :param source: if a source df is given it will be used as the link table (cols = OBJECT_NO, LINK_OBJECT_NO, LINK_DESCRIPTION)
+    :param source: if a source df is given it will be used as the link table (cols = OBJECT_NO, LINK_OBJECT_NO, LINK_DESCRIPTION, POSITION)
     :return: Tuple(Node, List): a node representing that topology and a list of object numbers in that pool (object_A and object_B)
     """
 
@@ -106,11 +117,14 @@ def get_linked_ojects(object_A:str, object_B:str, encoding:str = "OBJECT_NO", so
 
     def get(object, column="OBJECT_NO"):
         if source is None:
-            #get all children of object from __LINK_TABLE via SQL
-            link_obj:pd.DataFrame = get_data_ordb("")
+            #currently not implemented as it depends on the final linkage table database implementation
+            q = f"GET OBJECT_NO, LINK_OBJECT_NO, LINK_DESCRIPTION, POSITION"
+            #get all children of object from __LINK_TABLE via SQL (need to sort by position ASC)
+            link_obj:pd.DataFrame = None
         else:
             #get all children of object from df
             link_obj:pd.DataFrame = source.loc[source[column] == str(object)]
+            link_obj = link_obj.sort_values("POSITION")
         return link_obj.reset_index(drop=True)
 
     def explore(upstream_reg_id, _object_B):
@@ -157,10 +171,6 @@ def get_linked_ojects(object_A:str, object_B:str, encoding:str = "OBJECT_NO", so
         else:
             next_reg = build(up_object_no)
 
-            # i = list(filter(lambda child: child.object_no == up_object_no, next_reg.children))[0]
-            # print(i.object_no)
-            # next_reg.children.remove(i)
-
             next_reg.get_last_child().addNode(upstream.children)
             return next_reg
 
@@ -174,6 +184,8 @@ def subtract_one_month(dt0:pd.datetime):
     return dt3
 
 def not_monotonic(df:pd.DataFrame, col:str) -> pd.Series:
+    """Will check if a column in a dataframe monotonic increasing (within a certain sensitivity)
+    @:returns Series of booleans True if the monotonicity is broken at that index"""
     bool_array = []
     sensitivity = 1.0 # this lowers the sensitivity of the filter (i.e. values within this range will still be considered as monotonic increasing)
     vals = df[col].values
@@ -188,8 +200,10 @@ def not_monotonic(df:pd.DataFrame, col:str) -> pd.Series:
 
 
 def fix_resets(df:pd.DataFrame) -> pd.DataFrame:
+    """Resets are when the totaliser (EVENT_VALUE) in the RTU goes to zero and starts accumulating again
+    This code recognises this condition, and ignores all other conditions that would cause data to go to zero
+    Can account for unexpected zeros at end of time series, but NOT at beginning."""
     working_df = df.reset_index()
-    pattern = working_df.ne(0.0).any(1) & working_df.shift(-1).eq(0.0).any(1)
     pattern = not_monotonic(working_df, "EVENT_VALUE")
 
     jumps_to_zero = working_df[pattern] #this grabs the value just prior to whenever the pattern goes from high to low
