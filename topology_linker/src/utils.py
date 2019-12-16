@@ -107,24 +107,17 @@ def get_linked_ojects(object_A:str, object_B:str, encoding:str = "OBJECT_NO", so
 
     :param object_A: the identifier of the upstream object
     :param object_B: the identifier of the downstream object
-    :param encoding: valid options 'OBJECT_NO', 'SITE_NAME', 'ASSET_CODE'
-    :param source: if a source df is given it will be used as the link table (cols = OBJECT_NO, LINK_OBJECT_NO, LINK_DESCRIPTION, POSITION)
+    :param encoding: encoding of object_A and object_A. valid options 'OBJECT_NO', 'SITE_NAME', 'ASSET_CODE'
+    :param source: dataframe to be as the link table (cols = OBJECT_NO, LINK_OBJECT_NO, LINK_DESCRIPTION, POSITION)
     :return: Tuple(Node, List): a node representing that topology and a list of object numbers in that pool (object_A and object_B)
     """
+    assert source is not None
 
     objects = [object_A]
 
-
     def get(object, column="OBJECT_NO"):
-        if source is None:
-            #currently not implemented as it depends on the final linkage table database implementation
-            q = f"GET OBJECT_NO, LINK_OBJECT_NO, LINK_DESCRIPTION, POSITION"
-            #get all children of object from __LINK_TABLE via SQL (need to sort by position ASC)
-            link_obj:pd.DataFrame = None
-        else:
-            #get all children of object from df
-            link_obj:pd.DataFrame = source.loc[source[column] == str(object)]
-            link_obj = link_obj.sort_values("POSITION")
+        link_obj:pd.DataFrame = source.loc[source[column] == str(object)]
+        link_obj = link_obj.sort_values("POSITION")
         return link_obj.reset_index(drop=True)
 
     def explore(upstream_reg_id, _object_B):
