@@ -3,7 +3,7 @@
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
-from typing import Tuple
+from typing import Tuple, Union
 import pandas as pd
 from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_ordb
 from node import Node
@@ -29,7 +29,7 @@ def parse(file_path:str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     branch = None
     main_channel_last_index = None
     for index, row in csv_df.iterrows():
-        if pd.isna(row[:4]).tolist() == [False, False, False]:
+        if pd.isna(row[:2]).tolist() == [False, False]:
             #this is marks the start of a description (and end of the last one)
             if main_channel_last_index is None:
                 main_channel_last_index = index
@@ -210,3 +210,48 @@ def fix_resets(df:pd.DataFrame) -> pd.DataFrame:
             working_df.loc[working_df["EVENT_TIME"] > row["EVENT_TIME"], "EVENT_VALUE"] = slice
 
     return working_df
+
+def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.datetime], Tuple[None, pd.datetime]]:
+    MAX_dist = pd.Timedelta(weeks=6)
+    q = ("Select DATE_EFFECTIVE, METERED_USAGE"
+         " From METER_READING"
+         f" WHERE SP_OBJECT_NO = '{obj_no}'")
+
+    q = get_data_ordb(q)
+
+    def check_distance(d:list):
+        count = 0
+        for td in d:
+            if td > MAX_dist:
+                count += 1
+        if count > 0: print(f"Warning! For {count}/{len(d)} of the timestamps adjacent to {date}, have differences greater than {MAX_dist} for {obj_no}")
+
+    if not q.empty:
+        # get the value to the LHS and RHS of date
+        lhs = q.loc[q["DATE_EFFECTIVE"] < date].tail(1).reset_index(drop=True)
+        rhs = q.loc[q["DATE_EFFECTIVE"] >= date].head(1).reset_index(drop=True)
+
+        # find the nearest of the two provided both are of length 1
+        rtn = None
+        if not lhs.empty: del_LHS = date - lhs["DATE_EFFECTIVE"][0]
+        else: rtn = rhs
+        if not rhs.empty: del_RHS = rhs["DATE_EFFECTIVE"][0] - date
+        else: rtn = lhs
+
+        if rtn is not None:
+            del_rtn = abs(date - rtn["DATE_EFFECTIVE"][0])
+            check_distance([del_rtn])
+            return rtn["METERED_USAGE"][0], rtn['DATE_EFFECTIVE'][0]
+
+        check_distance([del_LHS, del_RHS])
+
+        if del_LHS >= del_RHS:
+            # if the date is right in the middle of the readings better to overestimate than under?
+            return rhs["METERED_USAGE"][0], rhs['DATE_EFFECTIVE'][0]
+
+        else:
+            return lhs["METERED_USAGE"][0], rhs['DATE_EFFECTIVE'][0]
+
+    else:
+        print(f"No values for this meter ({obj_no})")
+        return None, date

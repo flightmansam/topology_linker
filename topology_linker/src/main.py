@@ -7,6 +7,7 @@ The standardisation of the input csv is described in the src readme.md"""
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
+from typing import Union
 from constants import file_path, DS_METER, US_REG, DS_ESC, DS_OFFTAKE, DS_SV
 from node import Node
 from utils import parse, query
@@ -14,19 +15,24 @@ import pandas as pd
 
 main_channel, lateral_descriptions = parse(file_path)
 
-headings = []
+### DEFINE THE NAME OF THE BRANCH YOU ARE PARSING HERE
+# Start building the tree data structure
+root = Node('LVBC')
+root.object_no = '214362'
+root.object_description = 'Main Channel'
+### DEFINE THE NAME OF THE BRANCH YOU ARE PARSING HERE
 
-#FIND THE HEADINGS IN THE MAIN CHANNEL (REGULATORS, ESCAPES, OTHERS)
+headings = []
+# FIND THE HEADINGS IN THE MAIN CHANNEL (REGULATORS, ESCAPES, OTHERS)
 for index, values in main_channel.iterrows():
-    #pattern for NEW REG in channel [NaN, Regulator name, Dont care]
+    # pattern for NEW REG in channel [NaN, Regulator name, Dont care]
     if pd.isna(values[:2]).tolist() == [True, False]:
         headings.append(values["Regulator Number"].strip())
 
 headings = tuple(headings)
+headings = query(headings) #find the information about headings (ASSET_CODE, DESCRIPTION ETC..)
 
-headings = query(headings)
-
-def build_lateral(lateral_key:str) -> Node:
+def build_lateral(lateral_key: str) -> Union[Node, None]:
     if lateral_key in lateral_descriptions:
         desc = lateral_descriptions[lateral_key]
     else:
@@ -46,7 +52,7 @@ def build_lateral(lateral_key:str) -> Node:
                     offtake.addNode((Node(heading, DS_ESC)))
                 elif a_c.startswith('SV-'):
                     # else SV
-                   offtake.addNode(Node(heading, DS_SV))
+                    offtake.addNode(Node(heading, DS_SV))
                 else:
                     print(f"CODE: {a_c} not recognised")
 
@@ -55,14 +61,11 @@ def build_lateral(lateral_key:str) -> Node:
 
     return offtake
 
-#Start building the tree data structure
-root = Node('LVBC', 'Main Channel', object_no='214362')
 previous_reg = root
 current_reg = None
-
 for index, values in main_channel.iterrows():
-    #PATTERN FOR REGULATOR: in headings, asset code starts with RG-
-    #PATTERN FOR ESCAPE: in headings, asset code starts with ES-
+    # PATTERN FOR REGULATOR: in headings, asset code starts with RG-
+    # PATTERN FOR ESCAPE: in headings, asset code starts with ES-
     if pd.isna(values[:2]).tolist() == [True, False]:
         values["Regulator Number"] = values["Regulator Number"].strip()
         df = headings.loc[headings['SITE_NAME'] == values["Regulator Number"]]
@@ -84,18 +87,15 @@ for index, values in main_channel.iterrows():
         # this is a call to branch to a lateral
         # build the lateral node and the add to the current reg
         current_reg.addNode(build_lateral(values['Branch']))
-        print(values['Branch'])
 
     if pd.notna(values[2]):
         current_reg.addNode(Node(values['Outlet'].strip(), DS_METER))
 
-previous_reg.addNode(current_reg) # add the last regulator in the file
+previous_reg.addNode(current_reg)  # add the last regulator in the file
 
 print(root)
 df = root.as_df()
 print(df.to_string())
-#df.to_csv("../out/LINKED.csv")
+df.to_csv("../out/LINKED.csv")
 
-#this is where you can send to the database this linkage df
-
-
+# this is where you can send to the database this linkage df

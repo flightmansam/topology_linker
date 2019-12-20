@@ -1,3 +1,10 @@
+"""Rough version of a water balance tool. Used to for testing and proving tools developed in topology_linker project.
+The results from /out/report/report.pdf come from modifications in this file. This will need revising based on the
+conclusions. """
+
+__author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
+__email__ = "samuel.hutchinson@mirrigation.com.au"
+
 import topology_linker.res.FGinvestigation.fginvestigation.extraction as ext
 from constants import DS_METER, DS_ESC
 from utils import get_linked_ojects, subtract_one_month, fix_resets
@@ -11,13 +18,14 @@ period_end = (pd.datetime(year=2019, month=10, day=9, hour=00))
 period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
 #period_start = (pd.datetime.now() - pd.Timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
 export = False
-use_rtu_as_source = False
 use_rtu_as_source = True
+
 if export: fh = open("../out/WATER_USAGE.csv", 'w', newline='')
 
 
 #NORMALLY this df would be fetched by pulling down the linked table from SQL
-df = pd.read_csv("../out/LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', 'LINK_DESCRIPTION', 'POSITION'], dtype={'OBJECT_NO':str,  'LINK_OBJECT_NO':str, 'LINK_DESCRIPTION':str})
+df = pd.read_csv("../out/LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', 'LINK_DESCRIPTION', 'POSITION'],
+                 dtype={'OBJECT_NO':str,  'LINK_OBJECT_NO':str, 'LINK_DESCRIPTION':str})
 
 link, link_list = get_linked_ojects(object_A=upstream_point,
                                         object_B=downstream_point,

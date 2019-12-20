@@ -1,0 +1,35 @@
+*Scotts*
+Explanation
+64657  - unmetered max flow 3.0 (ML/D)
+67231  - unmetered max flow 3.0 (ML/D)
+69211  - unmetered max flow 6.0 (ML/D)
+64606  - unmetered max flow 6.0 (ML/D)
+64669  - unmetered max flow 3.0 (ML/D)
+64729  - unmetered max flow 3.0 (ML/D)
+64645  - unmetered, 0.00ML period to date at property (Note, Steve Matheson Jun 2015 - unconnected to property) 
+64753  - unmetered max flow 0.5 (ML/D)
+69541  - unmetered max flow 3.0 (ML/D)
+219615 - dummy outlet, new workd application (Mar 2019)
+148390 - unmetered max flow 1.0 (ML/D)
+70321  - unmetered max flow 0.5 (ML/D)
+70975  - unmetered max flow 3.0 (ML/D)
+
+Without reason
+69550  - dummy outlet, JWS with 2185500 (31.85ML period to date at property)
+
+*Nericon*
+Explanation
+220363 - metered max flow 6.0, no min flow (mag-flow), brand new meter 05/12/19 outside of the period I measured (site is 19/06/19) , maybe hasn't been set up yet?
+
+Without Reason
+206039 - dummy outlet, JWS with 2262802 (0.0 ML period to date at property)
+69838  - metered max flow 6.0 (mech-prop) (Note, Steve Matheson Oct 2014 -this outlet is not being automated)
+69838  - metered max flow 5.0 (mag-flow) (Note, Steve Matheson Oct 2014 -this outlet is not being automated. S & D supply only)
+30773  - metered regulator escape, no records of any meter values on netwrk vis
+145503 - metered max flow 6.0 (mag-flow) (PICNIC, 3.4 period to date at property, including sailing)
+70360  - metered max flow 6.0 (mech-other) serial number 0? as old as 2003, no recent dates in the effective column
+69445  - metered max flow 12.0 (mech-prop) (Note, Steve Matheson Oct 2014 -this outlet is not being automated) property has two other meters, each with no flow data yet 667.1ML period to date at property
+64861  - metered max flow 6.0 (mag-flow) (SAILING, 3.4 period to date at property, including picnic)
+70057  - metered max flow 6.0 (mag-flow) (BOAT, 0.0 period to date at property)
+206014 - dummy outlet, JWS with 2185500 (31.85ML period to date at property)
+69442  - metered max flow 15 (mag-flow) property has two other meters (69445, 69451) each with no flow data yet 667.1ML period to date at property

@@ -1,5 +1,5 @@
 import topology_linker.res.FGinvestigation.fginvestigation.extraction as ext
-from utils import get_linked_ojects, fix_resets, not_monotonic
+from utils import get_linked_ojects, fix_resets, get_manual_meter
 import scipy.integrate as integrate
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,18 +10,9 @@ import matplotlib.pyplot as plt
 #
 
 
-period_start = (pd.datetime(year=2018, month=1, day=9, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
-query = (
-        f"Select *"
-        f" From SC_EVENT_LOG"
-        f" WHERE TAG_ID IN ("
-        f" SELECT TAG_ID FROM SC_TAG WHERE"
-        f" OBJECT_NO IN ('29355')"
-        f" AND TAG_NAME = 'FLOW_ACU_SR')"  
-        f" AND EVENT_TIME > TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
-        f" ORDER BY EVENT_TIME"
+period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
 
-)
+m = get_manual_meter('61320', period_start)
 
 query = (
         f"Select *"
@@ -61,14 +52,14 @@ df = pd.read_csv("../out/LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', '
 up = '30239'
 down = '30460'
 
-link, link_list = get_linked_ojects(object_A=up,
-                                    object_B=down,
-                                    source=df)
-print(link)
-print(link_list)
-link_list = [link.object_no] + [child.object_no for child in link.children]
-print(link_list)
-# link_list = ['31075', '67522', '65020', '141752', '31109']
+# link, link_list = get_linked_ojects(object_A=up,
+#                                     object_B=down,
+#                                     source=df)
+# print(link)
+# print(link_list)
+# link_list = [link.object_no] + [child.object_no for child in link.children]
+# print(link_list)
+link_list = ['221655','61320', '70912', '142422', '208598', '71170']
 # print(link_list)
 
 # query = (
@@ -78,8 +69,8 @@ print(link_list)
 #         f" AND TAG_NAME = 'FLOW_VAL'"
 # )
 
-period_end = (pd.datetime(year=2019, month=10, day=9, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
-period_start = (pd.datetime(year=2019, month=11, day=9, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
+period_end = (pd.datetime(year=2019, month=10, day=1, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
+period_start = (pd.datetime(year=2019, month=11, day=30, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
 #period_start = (pd.datetime.now() - pd.Timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
 
 query = (f"SELECT TAG_ID, EVENT_TIME, EVENT_VALUE "
@@ -91,11 +82,18 @@ query = (f"SELECT TAG_ID, EVENT_TIME, EVENT_VALUE "
                              f" AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
                              f" ORDER BY EVENT_TIME DESC")
 
+q = ("Select SP_OBJECT_NO, DATE_EFFECTIVE, METERED_USAGE"
+         " From METER_READING"
+         f" WHERE SP_OBJECT_NO in {tuple(link_list)}")
+
+q = ext.get_data_ordb(q)
+
+
 query = (f"SELECT OBJECT_NO, SC_EVENT_LOG.EVENT_TIME, SC_EVENT_LOG.EVENT_VALUE "
                              f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
                              f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
                              f" WHERE " 
-                             f" OBJECT_NO IN {tuple(link_list)} AND TAG_NAME = 'FLOW_VAL'"
+                             f" OBJECT_NO IN {tuple(link_list)} AND TAG_NAME = 'FLOW_ACU_SR'"
                              f" AND EVENT_TIME > TO_DATE('{period_end}', 'YYYY-MM-DD HH24:MI:SS')"
                              f"AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
                              f" ORDER BY EVENT_TIME")
