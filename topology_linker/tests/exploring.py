@@ -4,11 +4,17 @@ import scipy.integrate as integrate
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# query = ("SELECT *"
-#         f" FROM OBJECT WHERE OBJECT_NO IN "
-#         f" ('219201')")
-#
+query = ("SELECT *"
+         f" FROM METER_READING"
+         f" WHERE SP_OBJECT_NO = '30828'"
+         f" FETCH NEXT 10000 ROWS ONLY")
 
+query = ("SELECT *"
+         f" FROM OBJECT_ATTR_VALUE"
+         f" WHERE OBJECT_NO = '31210'"
+         f" FETCH NEXT 10000 ROWS ONLY")
+
+obj_data = ext.get_data_ordb(query)
 
 period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
 
@@ -111,8 +117,7 @@ def set_shared_ylabel(a, ylabel, labelpad = 0.01):
     ----------
     a: list of axes
     ylabel: string
-    labelpad: float
-        Sets the padding between ticklabels and axis label"""
+    labelpad: float Sets the padding between ticklabels and axis label"""
 
     f = a[0].get_figure()
     f.canvas.draw() #sets f.canvas.renderer needed below

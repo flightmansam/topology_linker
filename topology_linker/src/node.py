@@ -122,7 +122,7 @@ class Node:
         out = []
         for child in self.children:
             if child.object_description in desc:
-                out.append(child.object_no)
+                out.append(child)
             out += child.get_all_of_desc(desc)
         return out
 
