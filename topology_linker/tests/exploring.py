@@ -17,6 +17,14 @@ query = ("SELECT *"
 obj_data = ext.get_data_ordb(query)
 
 period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
+asset_code = 'RG-2-698'
+
+query = (
+        f" SELECT *"
+        f"    FROM TAGS"
+        f" WHERE OBJECT_NO = ( select OBJECT_NO from Objects WHERE ASSET_CODE = '{asset_code}') "
+    )
+df = ext.get_data_sql(query)
 
 m = get_manual_meter('61320', period_start)
 

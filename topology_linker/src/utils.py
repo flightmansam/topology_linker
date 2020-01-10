@@ -255,3 +255,23 @@ def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.date
     else:
         print(f"No values for this meter ({obj_no})")
         return None, date
+
+def Q_flume(h1:float, h2:float, alpha:float, beta:float, b:float) -> float:
+    g = 9.80665  # (standard g)
+
+    assert isinstance(h1, float) & \
+           isinstance(h2, float) & \
+           isinstance(alpha, float) & \
+           isinstance(beta, float) & \
+           isinstance(b, float)
+    if h1 == 0.0:
+        h1 = 1e-6 #in case of zero division
+        print("Warning! h1 was zero")
+    if h2 < 0.0:
+        h2 = 0.0
+
+
+    C_D = alpha * (1.0 - (h2 / h1)**1.5) + beta
+
+    Q = (2/3) * C_D * b * (2 * g)**0.5 * h1**1.5
+    return Q
