@@ -1,12 +1,14 @@
 """Somewhat non-specific tools pertinent to the topology linkage and water balance project"""
+from scipy import integrate
 
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
 from typing import Tuple, Union
 import pandas as pd
-from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_ordb
+from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_sql, get_data_ordb
 from node import Node
+import matplotlib.pyplot as plt
 
 def parse(file_path:str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Splits the csv into section 1. and section 2. as described in the readme
@@ -224,7 +226,10 @@ def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.date
         for td in d:
             if td > MAX_dist:
                 count += 1
-        if count > 0: print(f"Warning! For {count}/{len(d)} of the timestamps adjacent to {date}, have differences greater than {MAX_dist} for {obj_no}")
+        if count > 0:
+            print(f"Warning! For {count}/{len(d)} of the timestamps adjacent to {date}, have differences greater than {MAX_dist} for {obj_no}")
+            if count / len(d) == 1.0: return -1
+        return 1
 
     if not q.empty:
         # get the value to the LHS and RHS of date
@@ -240,10 +245,11 @@ def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.date
 
         if rtn is not None:
             del_rtn = abs(date - rtn["DATE_EFFECTIVE"][0])
-            check_distance([del_rtn])
-            return rtn["METERED_USAGE"][0], rtn['DATE_EFFECTIVE'][0]
+            check = check_distance([del_rtn])
+            return -1 if check == -1 else rtn["METERED_USAGE"][0], rtn['DATE_EFFECTIVE'][0]
 
-        check_distance([del_LHS, del_RHS])
+        check = check_distance([del_LHS, del_RHS])
+        if check == -1: return -1, date
 
         if del_LHS >= del_RHS:
             # if the date is right in the middle of the readings better to overestimate than under?
@@ -256,7 +262,7 @@ def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.date
         print(f"No values for this meter ({obj_no})")
         return None, date
 
-def Q_flume(h1:float, h2:float, alpha:float, beta:float, b:float) -> float:
+def _Q_flume(h1:float, h2:float, alpha:float, beta:float, b:float) -> float:
     g = 9.80665  # (standard g)
 
     assert isinstance(h1, float) & \
@@ -270,8 +276,97 @@ def Q_flume(h1:float, h2:float, alpha:float, beta:float, b:float) -> float:
     if h2 < 0.0:
         h2 = 0.0
 
-
-    C_D = alpha * (1.0 - (h2 / h1)**1.5) + beta
+    C_D = alpha * (1.0 - (h2 / h1)**1.5) ** beta
 
     Q = (2/3) * C_D * b * (2 * g)**0.5 * h1**1.5
     return Q
+
+def Q_flume(asset_id:tuple, time_first:pd.datetime, time_last:pd.datetime,
+            alpha:float, beta:float,
+            no_gates:int, gate_width:float) -> float:
+    """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
+    and calculate the flow from that period."""
+    oracle = False
+    show = False
+
+    asset_code = asset_id[0]
+    object_no = asset_id[1]
+
+    tags = [f'Gate {i} Elevation' for i in range(1, no_gates + 1)] + \
+           ['U/S Water Level', 'D/S Water Level', 'Current Flow']
+    tags = tuple(tags)
+
+    if not oracle:
+        query = (
+            f" SELECT EVENT_TIME, Tags.TAG_DESC, EVENT_VALUE"
+            f"    FROM EVENTS INNER JOIN Tags ON EVENTS.TAG_ID = Tags.TAG_ID"
+            f" WHERE OBJECT_NO = ( select OBJECT_NO from Objects WHERE ASSET_CODE = '{asset_code}') "
+            f"    AND TAG_DESC in {tags}"
+            f"    AND (EVENT_TIME >= '{time_first.strftime('%Y-%m-%d %H:%M:%S')}')"
+            f"    AND (EVENT_TIME <= '{time_last.strftime('%Y-%m-%d %H:%M:%S')}')"
+        )
+        df = get_data_sql(query)
+
+    else:
+        query = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE "
+                 f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
+                 f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
+                 f" WHERE "
+                 f" OBJECT_NO = {object_no} AND TAG_DESC in {tags}"
+                 f" AND EVENT_TIME >= TO_DATE('{time_first.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+                 f" AND EVENT_TIME <= TO_DATE('{time_last.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+                 f" ORDER BY EVENT_TIME")
+        df =  get_data_ordb(query)
+
+    USL = df.loc[df["TAG_DESC"] == 'U/S Water Level'].set_index("EVENT_TIME")
+    DSL = df.loc[df["TAG_DESC"] == 'D/S Water Level'].set_index("EVENT_TIME")
+
+    GATES = pd.DataFrame()
+    for i in range(1, no_gates + 1):
+        G = df.loc[df["TAG_DESC"] == f'Gate {i} Elevation'].set_index("EVENT_TIME")["EVENT_VALUE"]
+        G.columns = pd.Index([f"{i}"])
+        GATES = GATES.join(G, how="outer", lsuffix="l_")
+    GATES = GATES.interpolate()
+    G_av = GATES.sum(axis=1) / no_gates
+
+    CF = df.loc[df["TAG_DESC"] == "Current Flow"].set_index("EVENT_TIME")["EVENT_VALUE"] / 86.4
+
+    out = pd.merge(USL["EVENT_VALUE"], DSL["EVENT_VALUE"], "inner", on="EVENT_TIME", suffixes=("_USL", "_DSL"))
+    out = out.join(G_av.to_frame(), how="inner", rsuffix="_G_av")
+    out.columns = pd.Index(["USL", "DSL", "G_av"])
+
+    Qs = []
+    for idx in out.index.values:
+        Q = _Q_flume(h1=out.loc[idx, "USL"] - out.loc[idx, "G_av"],
+                    h2=out.loc[idx, "DSL"] - out.loc[idx, "G_av"],
+                    alpha=alpha,
+                    beta=beta,
+                    b=no_gates * gate_width)
+        Qs.append(Q)  # m3/
+
+    out["FG_flow_calc"] = Qs
+
+    ax = out.plot()
+
+
+    first = out.index.values[0]
+    delta_t = [pd.Timedelta(td - first).total_seconds() for td in out.index.values]
+    FG_integral = integrate.cumtrapz(y=out["FG_flow_calc"].values, x=delta_t) / 1000
+    FG_integral = pd.Series(data=FG_integral, index=out.index.values[1:]).transpose()
+    FG = max(FG_integral)
+    label = f"FG_flow: INTEGRAL -> {FG:.1f} ML"
+    print(label)
+
+    CF.plot(label="CURRENT FLOW", ax=ax)
+    delta_t = [pd.Timedelta(td - first).total_seconds() for td in CF.index.values]
+    CF_integral = integrate.cumtrapz(y=CF.values, x=delta_t) / 1000  # ?
+    CF_integral = pd.Series(data=CF_integral, index=CF.index.values[1:]).transpose()
+    CF = max(CF_integral)
+    label = f"CF: INTEGRAL -> {CF:.1f} ML"
+    print(label)
+    ax.legend()
+    plt.title = asset_code
+    if show: plt.show()
+    else: plt.close()
+
+    return FG

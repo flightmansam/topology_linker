@@ -4,67 +4,67 @@ import scipy.integrate as integrate
 import pandas as pd
 import matplotlib.pyplot as plt
 
-query = ("SELECT *"
-         f" FROM METER_READING"
-         f" WHERE SP_OBJECT_NO = '30828'"
-         f" FETCH NEXT 10000 ROWS ONLY")
-
-query = ("SELECT *"
-         f" FROM OBJECT_ATTR_VALUE"
-         f" WHERE OBJECT_NO = '31210'"
-         f" FETCH NEXT 10000 ROWS ONLY")
-
-obj_data = ext.get_data_ordb(query)
-
-period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
-asset_code = 'RG-2-698'
-
-query = (
-        f" SELECT *"
-        f"    FROM TAGS"
-        f" WHERE OBJECT_NO = ( select OBJECT_NO from Objects WHERE ASSET_CODE = '{asset_code}') "
-    )
-df = ext.get_data_sql(query)
-
-m = get_manual_meter('61320', period_start)
-
-query = (
-        f"Select *"
-        f" From SC_EVENT_LOG"
-        f" WHERE TAG_ID IN ("
-        f" SELECT TAG_ID FROM SC_TAG WHERE"
-        f" OBJECT_NO IN ('64783')"
-        f" AND TAG_NAME = 'FLOW_ACU_SR')"  
-        f" AND EVENT_TIME > TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
-        f" ORDER BY EVENT_TIME"
-)
-
+# query = ("SELECT *"
+#          f" FROM METER_READING"
+#          f" WHERE SP_OBJECT_NO = '30828'"
+#          f" FETCH NEXT 10000 ROWS ONLY")
+#
+# query = ("SELECT *"
+#          f" FROM OBJECT_ATTR_VALUE"
+#          f" WHERE OBJECT_NO = '31210'"
+#          f" FETCH NEXT 10000 ROWS ONLY")
+#
+# obj_data = ext.get_data_ordb(query)
+#
+# period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
+# asset_code = 'RG-2-698'
+#
+# query = (
+#         f" SELECT *"
+#         f"    FROM TAGS"
+#         f" WHERE OBJECT_NO = ( select OBJECT_NO from Objects WHERE ASSET_CODE = '{asset_code}') "
+#     )
+# df = ext.get_data_sql(query)
+#
+# m = get_manual_meter('61320', period_start)
+#
 # query = (
 #         f"Select *"
-#         f" From SC_TAG"
-#         f" WHERE OBJECT_NO IN ('64615')"
-#
+#         f" From SC_EVENT_LOG"
+#         f" WHERE TAG_ID IN ("
+#         f" SELECT TAG_ID FROM SC_TAG WHERE"
+#         f" OBJECT_NO IN ('64783')"
+#         f" AND TAG_NAME = 'FLOW_ACU_SR')"
+#         f" AND EVENT_TIME > TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
+#         f" ORDER BY EVENT_TIME"
 # )
-obj_data = ext.get_data_ordb(query)
-obj_data.set_index("EVENT_TIME", inplace=True)
-ax = obj_data["EVENT_VALUE"].plot(label="OLD")
-
-print()
-
-df = fix_resets(obj_data)
-df.set_index("EVENT_TIME", inplace=True)
-df["EVENT_VALUE"].plot(ax=ax, label="NEW")
-plt.legend()
-plt.show()
-from utils import query
-obj_data = query('219201', by='OBJECT_NO')
-
-print(obj_data.to_string())
-
-df = pd.read_csv("../out/LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', 'LINK_DESCRIPTION'], dtype={'OBJECT_NO':str,  'LINK_OBJECT_NO':str, 'LINK_DESCRIPTION':str})
-
-up = '30239'
-down = '30460'
+#
+# # query = (
+# #         f"Select *"
+# #         f" From SC_TAG"
+# #         f" WHERE OBJECT_NO IN ('64615')"
+# #
+# # )
+# obj_data = ext.get_data_ordb(query)
+# obj_data.set_index("EVENT_TIME", inplace=True)
+# ax = obj_data["EVENT_VALUE"].plot(label="OLD")
+#
+# print()
+#
+# df = fix_resets(obj_data)
+# df.set_index("EVENT_TIME", inplace=True)
+# df["EVENT_VALUE"].plot(ax=ax, label="NEW")
+# plt.legend()
+# plt.show()
+# from utils import query
+# obj_data = query('219201', by='OBJECT_NO')
+#
+# print(obj_data.to_string())
+#
+# df = pd.read_csv("../out/LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', 'LINK_DESCRIPTION'], dtype={'OBJECT_NO':str,  'LINK_OBJECT_NO':str, 'LINK_DESCRIPTION':str})
+#
+# up = '30239'
+# down = '30460'
 
 # link, link_list = get_linked_ojects(object_A=up,
 #                                     object_B=down,
@@ -73,21 +73,32 @@ down = '30460'
 # print(link_list)
 # link_list = [link.object_no] + [child.object_no for child in link.children]
 # print(link_list)
-link_list = ['221655','61320', '70912', '142422', '208598', '71170']
-# print(link_list)
-
+# link_list = ['29355', '']
+# # print(link_list)
+#
 # query = (
-#         f"Select OBJECT_NO, TAG_ID, TAG_DESC, RAW_VALUE, TAG_TIME, TAG_UNITS "
+#         f"Select * "
 #         f" From SC_TAG"
 #         f" Where OBJECT_NO IN {tuple(link_list)}"
-#         f" AND TAG_NAME = 'FLOW_VAL'"
+#
 # )
+#
+# q = ext.get_data_ordb(query)
 
-period_end = (pd.datetime(year=2019, month=10, day=1, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
-period_start = (pd.datetime(year=2019, month=11, day=30, hour=00)).strftime("%Y-%m-%d %H:%M:%S")
+period_end = (pd.datetime(year=2019, month=10, day=1, hour=00, second=43, microsecond=432)).strftime("%Y-%m-%d %H:%M:%S")
+period_start = (pd.datetime(year=2019, month=11, day=30, hour=00))#.strftime("%Y-%m-%d %H:%M:%S")
 #period_start = (pd.datetime.now() - pd.Timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+import io
+import requests
+url = f"http://www.bom.gov.au/watl/eto/tables/nsw/griffith_airport/griffith_airport-{period_start.year}{period_start.month}.csv"
+s = requests.get(url).content
+prev_month = pd.read_csv(io.StringIO(s.decode('utf-8', errors='ignore')))
+prev_month = prev_month[prev_month.iloc[:, 0] == "GRIFFITH AIRPORT"]
+prev_month = prev_month.set_index([prev_month.iloc[:, 1]])
+prev_month = pd.to_numeric(prev_month[prev_month.index >= "16/11/2019"].iloc[:, 2]).sum()
 
-query = (f"SELECT TAG_ID, EVENT_TIME, EVENT_VALUE "
+
+query = (f"SELECT EVENT_TIME, TAG_DESC, EVENT_VALUE "
                              f" FROM SC_EVENT_LOG"
                              f" WHERE TAG_ID IN"
                              f" ( SELECT TAG_ID FROM SC_TAG WHERE"
@@ -96,18 +107,15 @@ query = (f"SELECT TAG_ID, EVENT_TIME, EVENT_VALUE "
                              f" AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
                              f" ORDER BY EVENT_TIME DESC")
 
-q = ("Select SP_OBJECT_NO, DATE_EFFECTIVE, METERED_USAGE"
-         " From METER_READING"
-         f" WHERE SP_OBJECT_NO in {tuple(link_list)}")
 
-q = ext.get_data_ordb(q)
+#q = ext.get_data_ordb(query)
 
 
-query = (f"SELECT OBJECT_NO, SC_EVENT_LOG.EVENT_TIME, SC_EVENT_LOG.EVENT_VALUE "
+query = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE "
                              f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
                              f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
                              f" WHERE " 
-                             f" OBJECT_NO IN {tuple(link_list)} AND TAG_NAME = 'FLOW_ACU_SR'"
+                             f" OBJECT_NO IN {tuple(link_list)} AND TAG_DESC in ('Gate 1 Elevation', 'U/S Water Level', 'D/S Water Level')"
                              f" AND EVENT_TIME > TO_DATE('{period_end}', 'YYYY-MM-DD HH24:MI:SS')"
                              f"AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
                              f" ORDER BY EVENT_TIME")
