@@ -7,7 +7,7 @@ __email__ = "samuel.hutchinson@mirrigation.com.au"
 from typing import Tuple, Union
 import pandas as pd
 from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_sql, get_data_ordb
-from node import Node
+from topology_linker.src.node import Node
 import matplotlib.pyplot as plt
 
 def parse(file_path:str) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -259,7 +259,7 @@ def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.date
             return lhs["METERED_USAGE"][0], rhs['DATE_EFFECTIVE'][0]
 
     else:
-        print(f"No values for this meter ({obj_no})")
+        #No values for this meter
         return None, date
 
 def _Q_flume(h1:float, h2:float, alpha:float, beta:float, b:float) -> float:
@@ -370,3 +370,121 @@ def Q_flume(asset_id:tuple, time_first:pd.datetime, time_last:pd.datetime,
     else: plt.close()
 
     return FG
+
+def volume(obj_data:pd.DataFrame, objects:list, period_start, period_end, show=False, verbose=False) -> Tuple[pd.DataFrame, list]:
+    out_df = pd.DataFrame()
+    meters_not_checked = set()
+    meters_not_read = set()
+    manual_meters = set()
+    telemetered = set()
+    meters = 0
+    meters_neg = []
+
+    out = {
+        "outlet": [],
+        "object_id": [],
+        "RTU_totaliser (ML)": [],
+        "flow_integral (ML)": [],
+        "manual_reading (ML)": [],
+    }
+
+    for link_obj in objects:
+        out["outlet"].append(link_obj.object_name)
+        out["object_id"].append(link_obj.object_no)
+        link_obj = link_obj.object_no
+        if verbose: print(link_obj)
+        if link_obj in obj_data.index:
+            df = obj_data.loc[link_obj]
+            if isinstance(df, pd.DataFrame):
+                # collect RTU data (primary source)
+                RTU_df = df.loc[df["TAG_NAME"] == 'FLOW_ACU_SR'].sort_values(by=["EVENT_TIME"])
+                if show: ax = RTU_df.plot(x="EVENT_TIME", y="EVENT_VALUE", label="RTU_SOURCE")
+                RTU_df = fix_resets(RTU_df)
+                if show: RTU_df.plot(x="EVENT_TIME", y="EVENT_VALUE", ax=ax, label="RTU_INTEGRAL")
+                RTU = 0.0 if RTU_df.empty else (RTU_df["EVENT_VALUE"].max() - RTU_df.head(1)["EVENT_VALUE"].iat[0]) * 1000
+
+                # calculate INTEGRAL (secondary source)
+                FLOW_df = df.loc[df["TAG_NAME"] == 'FLOW_VAL'].sort_values(by=["EVENT_TIME"])
+                neg = FLOW_df["EVENT_VALUE"].values < 0.0
+                if neg.any(): meters_neg.append(link_obj)
+                if FLOW_df.empty:
+                    integral = [0.0]
+                else:
+                    # FLOW_df.loc[FLOW_df["EVENT_VALUE"] < 0.0, "EVENT_VALUE"] = 0.0
+                    first = FLOW_df.head(1)["EVENT_TIME"].values[0]
+                    time = [pd.Timedelta(td - first).total_seconds() for td in FLOW_df["EVENT_TIME"].values]
+                    FLOW_df["EVENT_VALUE"] = FLOW_df["EVENT_VALUE"] / 86.4
+                    integral = integrate.cumtrapz(y=FLOW_df["EVENT_VALUE"].values, x=time) / 1000
+                    integral = pd.Series(data=integral, index=FLOW_df["EVENT_TIME"].values[1:]).transpose()
+                    if integral.empty:
+                        integral = [0.0]
+                    if show: integral.plot(ax=ax, label="INTEGRAL")
+                integral = max(integral) * 1000
+
+                if show:
+                    ax2 = ax.twinx()
+                    FLOW_df.plot(x="EVENT_TIME", y="EVENT_VALUE", label="FLOW", ax=ax2, color="#9467bd", alpha=0.2)
+                    ax2.set_ylabel("FLOW (m3/s)")
+                    box = ax.get_position()
+                    ax.set_position([box.x0, box.y0 + box.height * 0.1,
+                                     box.width, box.height * 0.9])
+                    ax_ln, ax_lb = ax.get_legend_handles_labels()
+                    ax_lb[1] = ax_lb[1] + f"\n= {RTU / 1000:.1f} ML"
+                    ax_lb[2] = ax_lb[2] + f"\n= {integral / 1000:.1f} ML"
+                    ax2_ln, ax2_lb = ax2.get_legend_handles_labels()
+                    ax.legend(ax_ln + ax2_ln, ax_lb + ax2_lb, loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=4)
+                    ax.set_xlabel("")
+                    ax.set_ylabel("CUMULATIVE FLOW (ML)")
+                    ax2.get_legend().remove()
+                    plt.show()
+                else:
+                    plt.close()
+
+                out["RTU_totaliser (ML)"].append(RTU / 1000)
+                out["flow_integral (ML)"].append(integral / 1000)
+                out["manual_reading (ML)"].append("")
+
+            else:
+                print(f"{link_obj} - only one value for flow")
+                volume = df["EVENT_VALUE"]
+                out["RTU_totaliser (ML)"].append(volume / 1000)
+                out["flow_integral (ML)"].append(volume / 1000)
+                out["manual_reading (ML)"].append("")
+
+            telemetered.add(link_obj)
+
+        else:
+            # meter data not found in Events, maybe these are un telemetry or un metered flows
+            volume, date = get_manual_meter(link_obj, period_end)
+
+            if volume is None:
+                print(f"{link_obj} - No data")
+                meters_not_checked.add(link_obj)
+                out["RTU_totaliser (ML)"].append("")
+                out["flow_integral (ML)"].append("")
+                out["manual_reading (ML)"].append("")
+            elif volume == -1:
+                print(f"{link_obj} - meter not yet read")
+                meters_not_read.add(link_obj)
+                manual_meters.add(link_obj)
+                out["RTU_totaliser (ML)"].append("")
+                out["flow_integral (ML)"].append("")
+                out["manual_reading (ML)"].append("")
+            else:
+                print(f"{link_obj} volume = {volume:.1f}ML using MANUAL @ {date}")
+                out["RTU_totaliser (ML)"].append("")
+                out["flow_integral (ML)"].append("")
+                out["manual_reading (ML)"].append(volume)
+                manual_meters.add(link_obj)
+
+        meters += 1
+
+    # for key, line in out.items():
+    #     print(key, line)
+    out = pd.DataFrame(out)
+    out_df = pd.concat([out_df, out], ignore_index=True)
+    out_df["RTU_totaliser (ML)"] = pd.to_numeric(out_df["RTU_totaliser (ML)"])
+    out_df["flow_integral (ML)"] = pd.to_numeric(out_df["flow_integral (ML)"])
+    out_df["manual_reading (ML)"] = pd.to_numeric(out_df["manual_reading (ML)"])
+
+    return out_df, [meters_not_checked, meters_not_read, manual_meters, telemetered, meters_not_read, meters_neg]

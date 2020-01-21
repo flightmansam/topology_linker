@@ -3,7 +3,7 @@
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
-from constants import OBJECT, LINK_OBJECT, LINK_DESCRIPTION, POSITION, DS_METER
+from topology_linker.src.constants import OBJECT, LINK_OBJECT, LINK_DESCRIPTION, POSITION, DS_METER
 from typing import List, Union
 import pandas as pd
 from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_ordb
@@ -56,6 +56,9 @@ class Node:
                 out += '├─── '
             out += chld
         return out
+
+    def __repr__(self):
+        return f"{self.object_name} - {self.object_description} at 0x{id(self):016X}"
 
     def get_depth(self):
         if self.parent is None:
