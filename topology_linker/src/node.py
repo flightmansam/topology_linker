@@ -6,7 +6,7 @@ __email__ = "samuel.hutchinson@mirrigation.com.au"
 from topology_linker.src.constants import OBJECT, LINK_OBJECT, LINK_DESCRIPTION, POSITION, DS_METER
 from typing import List, Union
 import pandas as pd
-from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_ordb
+from fginvestigation.extraction import get_data_ordb
 
 class Node:
     def __init__(self, object_name: str = 'root',
@@ -18,7 +18,7 @@ class Node:
         :type parent: Node
         """
         self.children = list() if children is None else children
-        self.parent = parent
+        self.parent: Node = parent
         self.object_name = object_name
         self.object_description = object_description
         self.index = None

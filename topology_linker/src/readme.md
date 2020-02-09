@@ -1,12 +1,12 @@
 #Rules for parsing the csv
-The csv has two main sections.
-1. Rename the first column header to Branch. **YOU HAVE TO DO THIS**. 
+1. Rename the first column header to "Branch". **YOU HAVE TO DO THIS**. 
 2. Total branch description where any meters and regs are described sequentially 
 and jump instructions are given to describe a lateral.
 3. Lateral descriptions located using the same name convention as the used for the laterals in 1. 
 
 The location of the csv file is a constant variable in the file constants.py
 
+The csv has two main sections.
 ## 1. Total branch description 
 The first column can ONLY contain instructions to jump to a lateral. In the original CSV the main 
 channel name will be the first occurrence in this column. You need to delete this.

@@ -6,14 +6,12 @@ __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
 import io
-import matplotlib.pyplot as plt
-import scipy.integrate as integrate
 import pandas as pd
 import requests
 
-import topology_linker.res.FGinvestigation.fginvestigation.extraction as ext
+import fginvestigation.extraction as ext
 from topology_linker.src.constants import DS_METER, DS_ESC
-from topology_linker.src.utils import get_linked_ojects, fix_resets, get_manual_meter, Q_flume, volume
+from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
 
 export = False
 debug = False

@@ -1,38 +1,39 @@
 """Somewhat non-specific tools pertinent to the topology linkage and water balance project"""
-from scipy import integrate
-
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict
 import pandas as pd
-from topology_linker.res.FGinvestigation.fginvestigation.extraction import get_data_sql, get_data_ordb
+from fginvestigation.extraction import get_data_sql, get_data_ordb
 from topology_linker.src.node import Node
 import matplotlib.pyplot as plt
+from scipy import integrate
 
-def parse(file_path:str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+
+def parse(file_path: str) -> Tuple[pd.DataFrame, Dict[pd.DataFrame]]:
     """Splits the csv into section 1. and section 2. as described in the readme
     :returns dataframes of each with the branch/lateral as the column"""
     with open(file_path, 'r', encoding="UTF-8") as fh:
         start_index = 0
         for line in fh.readlines():
-            #find the start of the data (instead of just skipping "n" rows)
+            # find the start of the data (instead of just skipping "n" rows)
             if line.__contains__("Regulator Number"):
                 break
             start_index += 1
 
-    csv_df = pd.read_csv(file_path, skiprows=start_index, na_values=' ', skipfooter=3, usecols=['Branch','Regulator Number ','Outlet '], engine='python')
+    csv_df = pd.read_csv(file_path, skiprows=start_index, na_values=' ', skipfooter=3,
+                         usecols=['Branch', 'Regulator Number ', 'Outlet '], engine='python')
     csv_df.dropna(axis='index', how='all', inplace=True)
     csv_df.columns = [col.strip() for col in csv_df.columns]
 
     lateral_descriptions = {}
     main_channel = []
-    #collect lateral descriptions
+    # collect lateral descriptions
     branch = None
     main_channel_last_index = None
     for index, row in csv_df.iterrows():
         if pd.isna(row[:2]).tolist() == [False, False]:
-            #this is marks the start of a description (and end of the last one)
+            # this is marks the start of a description (and end of the last one)
             if main_channel_last_index is None:
                 main_channel_last_index = index
             if branch is not None:
@@ -46,13 +47,14 @@ def parse(file_path:str) -> Tuple[pd.DataFrame, pd.DataFrame]:
             if branch not in lateral_descriptions:
                 lateral_descriptions[branch] = []
             lateral_descriptions[branch].append(row)
-    lateral_descriptions[branch] = pd.DataFrame(lateral_descriptions[branch]) #covert last branch to df
-    main_channel = pd.DataFrame(main_channel, columns=row.keys())
+    lateral_descriptions[branch] = pd.DataFrame(lateral_descriptions[branch])  # covert last branch to df
+    main_channel = pd.DataFrame(main_channel, columns=row.keys())  # probably don't need to call row.keys()
 
     return main_channel, lateral_descriptions
 
-def query(headings: tuple, by:str = 'OBJECT_NAME') -> pd.DataFrame:
-    """Looks at the input heading and infers whether the heading is an OBJECT_NO or OBJECT_NAME using the "by" parameter
+
+def query(headings: Union[tuple, str], by: str = 'OBJECT_NAME') -> pd.DataFrame:
+    """Looks at the input heading and selects whether the heading is an OBJECT_NO or OBJECT_NAME using the "by" parameter
     uses the production database to find all naming information about that object"""
     # query = ("SELECT OBJECT_NO, ASSET_CODE, SITE_NAME, VALUE"
     #         f" FROM V_D_SITE_DETAILS WHERE SITE_NAME IN "
@@ -60,8 +62,8 @@ def query(headings: tuple, by:str = 'OBJECT_NAME') -> pd.DataFrame:
     #         f" AND ATTRIBUTE = 'Channel Name'")
 
     if isinstance(headings, str):
-        #assuming string only one item
-        headings = "('"+headings+"')"
+        # assuming string only one item
+        headings = "('" + headings + "')"
     if by == 'OBJECT_NO':
         by = 'OBJECT.OBJECT_NO'
 
@@ -73,13 +75,13 @@ def query(headings: tuple, by:str = 'OBJECT_NAME') -> pd.DataFrame:
         f" AND (ATTRIBUTE_TYPE in ('117', '45') OR OBJECT_VALUE_NO IS NULL)")
 
     query = get_data_ordb(query)
-    query = query.astype({"OBJECT_NO":str,"ATTRIBUTE_TYPE":str})
+    query = query.astype({"OBJECT_NO": str, "ATTRIBUTE_TYPE": str})
     query.replace(' ', pd.np.NaN, inplace=True)
 
     out = {
-        'OBJECT_NO':[],
-        'ASSET_CODE':[],
-        'SITE_NAME':[]
+        'OBJECT_NO': [],
+        'ASSET_CODE': [],
+        'SITE_NAME': []
     }
 
     vals = query["OBJECT_NAME"].unique()
@@ -99,7 +101,8 @@ def query(headings: tuple, by:str = 'OBJECT_NAME') -> pd.DataFrame:
 
     return pd.DataFrame(out)
 
-def get_linked_ojects(object_A:str, object_B:str, encoding:str = "OBJECT_NO", source:pd.DataFrame = None):
+
+def get_linked_ojects(object_A: str, object_B: str, source: pd.DataFrame, encoding: str = "OBJECT_NO"):
     """
     Will return a topology of objects in a pool between object_A and object_B. edward tufte
 
@@ -118,8 +121,8 @@ def get_linked_ojects(object_A:str, object_B:str, encoding:str = "OBJECT_NO", so
     objects = [object_A]
 
     def get(object, column="OBJECT_NO"):
-        link_obj:pd.DataFrame = source.loc[source[column] == str(object)]
-        link_obj = link_obj.sort_values("POSITION")
+        link_obj: pd.DataFrame = source.loc[source[column] == str(object)]
+        link_obj = link_obj.sort_values("POSITION")  # puts children in order of their appearance in the channel
         return link_obj.reset_index(drop=True)
 
     def explore(upstream_reg_id, _object_B):
@@ -146,7 +149,7 @@ def get_linked_ojects(object_A:str, object_B:str, encoding:str = "OBJECT_NO", so
     object_A = query(object_A, by=encoding)
     A_object_no = object_A["OBJECT_NO"][0]
 
-    def build(_object_B:str):
+    def build(_object_B: str):
         _object_B = query(_object_B, by=encoding)
         B_object_no = _object_B["OBJECT_NO"][0]
 
@@ -169,51 +172,61 @@ def get_linked_ojects(object_A:str, object_B:str, encoding:str = "OBJECT_NO", so
             next_reg.get_last_child().addNode(upstream.children)
             return next_reg
 
-
     return build(object_B), objects
 
-def subtract_one_month(dt0:pd.datetime):
+
+def subtract_one_month(dt0: pd.datetime):
     dt1 = dt0.replace(day=1)
     dt2 = dt1 - pd.Timedelta(days=1)
     dt3 = dt2.replace(day=1)
     return dt3
 
-def not_monotonic(df:pd.DataFrame, col:str) -> pd.Series:
+
+def not_monotonic(df: pd.DataFrame, col: str) -> pd.Series:
     """Will check if a column in a dataframe monotonic increasing (within a certain sensitivity)
     @:returns Series of booleans True if the monotonicity is broken at that index"""
     bool_array = []
-    sensitivity = 1.0 # this lowers the sensitivity of the filter (i.e. values within this range will still be considered as monotonic increasing)
+    sensitivity = 1.0  # this lowers the sensitivity of the filter (i.e. values within this range will still be considered as monotonic increasing)
     vals = df[col].values
     for index, val in enumerate(vals[:-1]):
-        #check to see if value is greater than the next n values (this filters out random zeros and weird float decimal point changes)
+        # check to see if value is greater than the next n values (this filters out random zeros and weird float decimal point changes)
         n = 100
         n = n if index < len(vals) - n else len(vals) - index
-        #get the proceeding n values
-        v = vals[index + 1 : index + 1 + n] < val - sensitivity
+        # get the proceeding n values
+        v = vals[index + 1: index + 1 + n] < val - sensitivity
         bool_array.append(v.all())
-    return pd.Series(bool_array + [False]) #last value cannont be checked for monoticity
+    return pd.Series(bool_array + [False])  # last value cannont be checked for monoticity
 
 
-def fix_resets(df:pd.DataFrame) -> pd.DataFrame:
+def fix_resets(df: pd.DataFrame) -> pd.DataFrame:
     """Resets are when the totaliser (EVENT_VALUE) in the RTU goes to zero and starts accumulating again
     This code recognises this condition, and ignores all other conditions that would cause data to go to zero
     Can account for unexpected zeros at end of time series, but NOT at beginning."""
     working_df = df.reset_index()
     pattern = not_monotonic(working_df, "EVENT_VALUE")
 
-    jumps_to_zero = working_df[pattern] #this grabs the value just prior to whenever the pattern goes from high to low
+    jumps_to_zero = working_df[pattern]  # this grabs the value just prior to whenever the pattern goes from high to low
 
-    #address the latest jumps first (go backwards)
+    # address the latest jumps first (go backwards)
     for index, row in jumps_to_zero.iloc[::-1].iterrows():
         if row["EVENT_VALUE"] != 0.0:
-            #this is a jump! - we need to sum this number to all the dates ahead of it
+            # this is a jump! - we need to sum this number to all the dates ahead of it
             slice = working_df.loc[working_df["EVENT_TIME"] > row["EVENT_TIME"], "EVENT_VALUE"]
             slice += row["EVENT_VALUE"]
             working_df.loc[working_df["EVENT_TIME"] > row["EVENT_TIME"], "EVENT_VALUE"] = slice
 
     return working_df
 
-def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.datetime], Tuple[None, pd.datetime]]:
+
+def get_manual_meter(obj_no: str, date: pd.datetime) -> Union[Tuple[float, pd.datetime], Tuple[None, pd.datetime]]:
+    """Messy little function to collect the nearest meter reading to the date chosen
+    - pretty sure this function could by rewritten with a few pandas methods
+    e.g. q.set_index("DATE_EFFECTIVE", inplace=True)
+         q[date] = pd.NaN
+         q.fillna('nearest', inplace=True)
+         #check for distance of date and raise warning if needed
+         return q.loc[date, "METERED_USAGE"]
+    """
     MAX_dist = pd.Timedelta(weeks=6)
     q = ("Select DATE_EFFECTIVE, METERED_USAGE"
          " From METER_READING"
@@ -221,13 +234,14 @@ def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.date
 
     q = get_data_ordb(q)
 
-    def check_distance(d:list):
+    def check_distance(d: list):
         count = 0
         for td in d:
             if td > MAX_dist:
                 count += 1
         if count > 0:
-            print(f"Warning! For {count}/{len(d)} of the timestamps adjacent to {date}, have differences greater than {MAX_dist} for {obj_no}")
+            print(
+                f"Warning! For {count}/{len(d)} of the timestamps adjacent to {date}, have differences greater than {MAX_dist} for {obj_no}")
             if count / len(d) == 1.0: return -1
         return 1
 
@@ -238,10 +252,14 @@ def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.date
 
         # find the nearest of the two provided both are of length 1
         rtn = None
-        if not lhs.empty: del_LHS = date - lhs["DATE_EFFECTIVE"][0]
-        else: rtn = rhs
-        if not rhs.empty: del_RHS = rhs["DATE_EFFECTIVE"][0] - date
-        else: rtn = lhs
+        if not lhs.empty:
+            del_LHS = date - lhs["DATE_EFFECTIVE"][0]
+        else:
+            rtn = rhs
+        if not rhs.empty:
+            del_RHS = rhs["DATE_EFFECTIVE"][0] - date
+        else:
+            rtn = lhs
 
         if rtn is not None:
             del_rtn = abs(date - rtn["DATE_EFFECTIVE"][0])
@@ -259,10 +277,11 @@ def get_manual_meter(obj_no:str, date:pd.datetime) -> Union[Tuple[float, pd.date
             return lhs["METERED_USAGE"][0], rhs['DATE_EFFECTIVE'][0]
 
     else:
-        #No values for this meter
+        # No values for this meter
         return None, date
 
-def _Q_flume(h1:float, h2:float, alpha:float, beta:float, b:float) -> float:
+
+def _Q_flume(h1: float, h2: float, alpha: float, beta: float, b: float) -> float:
     g = 9.80665  # (standard g)
 
     assert isinstance(h1, float) & \
@@ -271,21 +290,22 @@ def _Q_flume(h1:float, h2:float, alpha:float, beta:float, b:float) -> float:
            isinstance(beta, float) & \
            isinstance(b, float)
     if h1 == 0.0:
-        h1 = 1e-6 #in case of zero division
+        h1 = 1e-6  # in case of zero division
         print("Warning! h1 was zero")
     if h2 < 0.0:
         h2 = 0.0
 
-    C_D = alpha * (1.0 - (h2 / h1)**1.5) ** beta
+    C_D = alpha * (1.0 - (h2 / h1) ** 1.5) ** beta
 
-    Q = (2/3) * C_D * b * (2 * g)**0.5 * h1**1.5
+    Q = (2 / 3) * C_D * b * (2 * g) ** 0.5 * h1 ** 1.5
     return Q
 
-def Q_flume(asset_id:tuple, time_first:pd.datetime, time_last:pd.datetime,
-            alpha:float, beta:float,
-            no_gates:int, gate_width:float) -> float:
+
+def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
+            alpha: float, beta: float,
+            no_gates: int, gate_width: float) -> float:
     """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
-    and calculate the flow from that period."""
+    and calculate the flow from that period. Wrapper for _Q_flume()"""
     oracle = False
     show = False
 
@@ -316,7 +336,7 @@ def Q_flume(asset_id:tuple, time_first:pd.datetime, time_last:pd.datetime,
                  f" AND EVENT_TIME >= TO_DATE('{time_first.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
                  f" AND EVENT_TIME <= TO_DATE('{time_last.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
                  f" ORDER BY EVENT_TIME")
-        df =  get_data_ordb(query)
+        df = get_data_ordb(query)
 
     USL = df.loc[df["TAG_DESC"] == 'U/S Water Level'].set_index("EVENT_TIME")
     DSL = df.loc[df["TAG_DESC"] == 'D/S Water Level'].set_index("EVENT_TIME")
@@ -338,16 +358,15 @@ def Q_flume(asset_id:tuple, time_first:pd.datetime, time_last:pd.datetime,
     Qs = []
     for idx in out.index.values:
         Q = _Q_flume(h1=out.loc[idx, "USL"] - out.loc[idx, "G_av"],
-                    h2=out.loc[idx, "DSL"] - out.loc[idx, "G_av"],
-                    alpha=alpha,
-                    beta=beta,
-                    b=no_gates * gate_width)
+                     h2=out.loc[idx, "DSL"] - out.loc[idx, "G_av"],
+                     alpha=alpha,
+                     beta=beta,
+                     b=no_gates * gate_width)
         Qs.append(Q)  # m3/
 
     out["FG_flow_calc"] = Qs
 
     ax = out.plot()
-
 
     first = out.index.values[0]
     delta_t = [pd.Timedelta(td - first).total_seconds() for td in out.index.values]
@@ -366,12 +385,25 @@ def Q_flume(asset_id:tuple, time_first:pd.datetime, time_last:pd.datetime,
     print(label)
     ax.legend()
     plt.title = asset_code
-    if show: plt.show()
-    else: plt.close()
+    if show:
+        plt.show()
+    else:
+        plt.close()
 
     return FG
 
-def volume(obj_data:pd.DataFrame, objects:list, period_start, period_end, show=False, verbose=False) -> Tuple[pd.DataFrame, list]:
+
+def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show=False, verbose=False) \
+        -> Tuple[pd.DataFrame, list]:
+    """
+
+    :param obj_data: all the data for the search in the period ('EVENT_TIME', 'FLOW_ACU_SR', 'FLOW_VAL')
+    :param objects: list of object no.s that you would like to calculate volumes from obj_data
+    :param period_start: RFU
+    :param period_end:
+    :param show: whether to open a plot for every meter calculated
+    :param verbose: whether to show extra console output
+    """
     out_df = pd.DataFrame()
     meters_not_checked = set()
     meters_not_read = set()
@@ -401,7 +433,8 @@ def volume(obj_data:pd.DataFrame, objects:list, period_start, period_end, show=F
                 if show: ax = RTU_df.plot(x="EVENT_TIME", y="EVENT_VALUE", label="RTU_SOURCE")
                 RTU_df = fix_resets(RTU_df)
                 if show: RTU_df.plot(x="EVENT_TIME", y="EVENT_VALUE", ax=ax, label="RTU_INTEGRAL")
-                RTU = 0.0 if RTU_df.empty else (RTU_df["EVENT_VALUE"].max() - RTU_df.head(1)["EVENT_VALUE"].iat[0]) * 1000
+                RTU = 0.0 if RTU_df.empty else (RTU_df["EVENT_VALUE"].max() - RTU_df.head(1)["EVENT_VALUE"].iat[
+                    0]) * 1000
 
                 # calculate INTEGRAL (secondary source)
                 FLOW_df = df.loc[df["TAG_NAME"] == 'FLOW_VAL'].sort_values(by=["EVENT_TIME"])

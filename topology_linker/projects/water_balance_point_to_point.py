@@ -1,10 +1,12 @@
 """A water balance tool.
 Takes two points on a network (described by a linkage table) and performs a water balance on them """
 
+# TODO: Rewrite this file to use the utils.volume() function to minimise code duplication
+
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
-import topology_linker.res.FGinvestigation.fginvestigation.extraction as ext
+import fginvestigation.extraction as ext
 from constants import DS_METER, DS_ESC
 from utils import get_linked_ojects, subtract_one_month, fix_resets
 import matplotlib.pyplot as plt
