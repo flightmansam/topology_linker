@@ -9,8 +9,8 @@ __email__ = "samuel.hutchinson@mirrigation.com.au"
 
 from typing import Union
 from topology_linker.src.constants import file_path, DS_METER, US_REG, DS_ESC, DS_OFFTAKE, DS_SV
-from node import Node
-from utils import parse, query
+from topology_linker.src.node import Node
+from topology_linker.src.utils import parse, query
 import pandas as pd
 
 #parse() will break the document up into its respective areas - see readme.md
@@ -43,7 +43,7 @@ def build_lateral(lateral_key: str) -> Union[Node, None]:
     else:
         return None
     for index, values in desc.iterrows():
-        # pattern for NEW Lateral in channel [NaN, NaN, don't care]
+        # pattern for new offtake in channel [NaN, NaN, don't care]
         if pd.notna(values[:2]).tolist() == [True, True]:
             lateral = Node(values[1].strip(), DS_OFFTAKE)
         # pattern for object in that lateral [NaN, object name, NaN]

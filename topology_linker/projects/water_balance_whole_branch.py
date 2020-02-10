@@ -13,10 +13,10 @@ import fginvestigation.extraction as ext
 from topology_linker.src.constants import DS_METER, DS_ESC
 from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
 
-export = False
-debug = False
-show = False
-topology = False
+export = False #whether to create a waterbalance csv
+debug = False # extra columns in output
+show = False #whether to show charts for every meter as the balance is created
+topology = False #whether to make a .txt file of the branch topology
 
 #I made a mistake when naming end and start a long time ago - they actually refer to their opposites
 period_end = pd.datetime(year=2019, month=12, day=16, hour=00)
@@ -89,9 +89,9 @@ this_month = this_month[this_month.iloc[:, 0] == "GRIFFITH AIRPORT"] #strip out 
 this_month = this_month.set_index([this_month.iloc[:, 1]]) #set the index to the date
 this_month = pd.to_numeric(this_month[this_month.index >= period_end.strftime("%d/%m/%Y")].iloc[:, 2]).sum() #sum all of the ET values for the date in the range
 
-print(prev_month, this_month)
+if debug: print(prev_month, this_month)
 ET = prev_month + this_month
-area = 272747
+area = 272747.0
 
 EVAP = ((area * ET) / 1000000) * 0.8
 
