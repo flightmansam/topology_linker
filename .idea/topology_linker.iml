@@ -3,9 +3,7 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$/../FGinvestigation" />
     <content url="file://$MODULE_DIR$/../sluice_discharge_calculator" />
-    <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/topology_linker/src" isTestSource="false" />
-    </content>
+    <content url="file://$MODULE_DIR$" />
     <orderEntry type="jdk" jdkName="Python 3.7 " jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>

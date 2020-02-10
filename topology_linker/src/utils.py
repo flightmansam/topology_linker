@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from scipy import integrate
 
 
-def parse(file_path: str) -> Tuple[pd.DataFrame, Dict[pd.DataFrame]]:
+def parse(file_path: str) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """Splits the csv into section 1. and section 2. as described in the readme
     :returns dataframes of each with the branch/lateral as the column"""
     with open(file_path, 'r', encoding="UTF-8") as fh:

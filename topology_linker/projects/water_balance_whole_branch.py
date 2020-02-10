@@ -18,6 +18,7 @@ debug = False
 show = False
 topology = False
 
+#I made a mistake when naming end and start a long time ago - they actually refer to their opposites
 period_end = pd.datetime(year=2019, month=12, day=16, hour=00)
 period_start = pd.datetime(year=2020, month=1, day=17, hour=00)
 
