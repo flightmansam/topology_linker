@@ -7,8 +7,8 @@ __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
 import fginvestigation.extraction as ext
-from constants import DS_METER, DS_ESC
-from utils import get_linked_ojects, subtract_one_month, fix_resets
+from topology_linker.src.constants import DS_METER, DS_ESC
+from topology_linker.src.utils import get_linked_ojects, subtract_one_month, fix_resets
 import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 import pandas as pd

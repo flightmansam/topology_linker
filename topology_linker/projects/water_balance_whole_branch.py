@@ -8,7 +8,6 @@ __email__ = "samuel.hutchinson@mirrigation.com.au"
 import io
 import pandas as pd
 import requests
-
 import fginvestigation.extraction as ext
 from topology_linker.src.constants import DS_METER, DS_ESC
 from topology_linker.src.utils import get_linked_ojects, Q_flume, volume

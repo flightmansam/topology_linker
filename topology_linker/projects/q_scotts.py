@@ -5,7 +5,7 @@ import pandas as pd
 from scipy import integrate
 import  matplotlib.pyplot as plt
 from fginvestigation.extraction import get_data_ordb, get_data_sql
-from utils import _Q_flume
+from topology_linker.src.utils import _Q_flume
 
 asset_code = 'RG-2-698'
 
