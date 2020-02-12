@@ -301,6 +301,16 @@ def _Q_flume(h1: float, h2: float, alpha: float, beta: float, b: float) -> float
     return Q
 
 
+def invert_Q_flume(Q:Union[float, pd.Series], C_D:float, b:float) -> Union[float, pd.Series]:
+    g = 9.80665  # (standard g)
+    assert isinstance(C_D, float) & \
+           isinstance(b, float)
+
+    h1 = ((3 * Q) / (2 * C_D * b * (2 * g) ** 0.5)) ** (2 / 3)
+
+    return h1
+
+
 def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
             alpha: float, beta: float,
             no_gates: int, gate_width: float) -> float:
