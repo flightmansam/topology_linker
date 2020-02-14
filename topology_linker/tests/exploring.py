@@ -1,22 +1,58 @@
-import topology_linker.res.FGinvestigation.fginvestigation.extraction as ext
-from utils import get_linked_ojects, fix_resets, get_manual_meter
+import fginvestigation.extraction as ext
+from topology_linker.src.utils import get_linked_ojects, fix_resets, get_manual_meter
 import scipy.integrate as integrate
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# query = ("SELECT *"
-#          f" FROM METER_READING"
-#          f" WHERE SP_OBJECT_NO = '30828'"
-#          f" FETCH NEXT 10000 ROWS ONLY")
-#
+meters = (69550,
+          67477,
+          141317,
+          219615,
+          70438,
+          69469,
+          64777,
+          70975,
+          64645,
+          67528,
+          148390,
+          145474,
+          208598,
+          70321,
+          206578,
+          70324,
+          70048,
+          64960,
+          64861,
+          70057,
+          64774,
+          67531,
+          64753,
+          206014,
+          206039,
+          65008,
+          64657,
+          144910,
+          70573,
+          67231,
+          69211,
+          219467,
+          64669,
+          70693,
+          64729,
+          69541)
+
+query = ("SELECT *"
+         f" FROM METER_READING"
+         f" WHERE SP_OBJECT_NO in {meters}")
+
 # query = ("SELECT *"
 #          f" FROM OBJECT_ATTR_VALUE"
 #          f" WHERE OBJECT_NO = '31210'"
 #          f" FETCH NEXT 10000 ROWS ONLY")
 #
-# obj_data = ext.get_data_ordb(query)
+obj_data = ext.get_data_ordb(query)
 #
-# period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
+period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
 # asset_code = 'RG-2-698'
 #
 # query = (

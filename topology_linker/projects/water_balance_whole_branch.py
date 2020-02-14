@@ -12,8 +12,8 @@ import fginvestigation.extraction as ext
 from topology_linker.src.constants import DS_METER, DS_ESC
 from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
 
-export = False #whether to create a waterbalance csv
-debug = False # extra columns in output
+export = True #whether to create a waterbalance csv
+debug = True # extra columns in output
 show = False #whether to show charts for every meter as the balance is created
 topology = False #whether to make a .txt file of the branch topology
 
@@ -115,7 +115,7 @@ if export:
                    f"Telemetered:, {len(telemetered)}\n",
                    f"Manually read:, {len(manual_meters)} \n",
                    f"Unmetered sites:, {len(meters_not_checked)}\n",
-                   f"Total:, {meters}\n",
+                   f"Total:, {len(meters)}\n",
                    "\n" if len(meters_not_read) == 0 else f"{len(meters_not_read)} manually read meters are missing up to date readings.\n\n"])
 
     if not debug:
@@ -135,8 +135,8 @@ if export:
         fh.writelines([f", Total, {RTU}, {INT}, {MAN}\n"
                    "\n",
                    f"time of data collection: {pd.datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
-                   "\n"])
-
+                   "\n",
+                   f"meters not read:\n"] + [',' + meter + '\n' for meter in meters_not_read])
 
 
     fh.close()

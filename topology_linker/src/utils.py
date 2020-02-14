@@ -228,7 +228,7 @@ def get_manual_meter(obj_no: str, date: pd.datetime) -> Union[Tuple[float, pd.da
          return q.loc[date, "METERED_USAGE"]
     """
     MAX_dist = pd.Timedelta(weeks=6)
-    q = ("Select DATE_EFFECTIVE, METERED_USAGE"
+    q = ("Select DATE_EFFECTIVE, METERED_USAGE, METER_READING"
          " From METER_READING"
          f" WHERE SP_OBJECT_NO = '{obj_no}'")
 
@@ -274,7 +274,7 @@ def get_manual_meter(obj_no: str, date: pd.datetime) -> Union[Tuple[float, pd.da
             return rhs["METERED_USAGE"][0], rhs['DATE_EFFECTIVE'][0]
 
         else:
-            return lhs["METERED_USAGE"][0], rhs['DATE_EFFECTIVE'][0]
+            return lhs["METERED_USAGE"][0], lhs['DATE_EFFECTIVE'][0]
 
     else:
         # No values for this meter
@@ -317,7 +317,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
     """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
     and calculate the flow from that period. Wrapper for _Q_flume()"""
     oracle = False
-    show = False
+    show = True
 
     asset_code = asset_id[0]
     object_no = asset_id[1]
@@ -325,10 +325,41 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
     tags = [f'Gate {i} Elevation' for i in range(1, no_gates + 1)] + \
            ['U/S Water Level', 'D/S Water Level', 'Current Flow']
     tags = tuple(tags)
-
+    # query = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE, SC_TAG.TAG_ID "
+    #          f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
+    #          f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
+    #          f" WHERE "
+    #          f" OBJECT_NO = {object_no} AND TAG_DESC in {tags}"
+    #          f" AND EVENT_TIME >= TO_DATE('{time_first.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+    #          f" AND EVENT_TIME <= TO_DATE('{time_last.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+    #          f" ORDER BY EVENT_TIME")
+    # orcl = get_data_ordb(query).set_index("EVENT_TIME")
+    # query = (
+    #     f" SELECT EVENT_TIME, Tags.TAG_DESC, EVENT_VALUE, Tags.TAG_ID"
+    #     f"    FROM EVENTS INNER JOIN Tags ON EVENTS.TAG_ID = Tags.TAG_ID"
+    #     f" WHERE OBJECT_NO = ( select OBJECT_NO from Objects WHERE ASSET_CODE = '{asset_code}') "
+    #     f"    AND TAG_DESC in {tags}"
+    #     f"    AND (EVENT_TIME >= '{time_first.strftime('%Y-%m-%d %H:%M:%S')}')"
+    #     f"    AND (EVENT_TIME <= '{time_last.strftime('%Y-%m-%d %H:%M:%S')}')"
+    # )
+    #
+    # sql = get_data_sql(query).set_index("EVENT_TIME")
+    # tag = 'U/S Water Level'
+    # sql = sql.loc[sql.TAG_DESC == tag, "EVENT_VALUE"]
+    # orcl = orcl.loc[orcl.TAG_DESC == tag, "EVENT_VALUE"]
+    # idx = orcl.loc[orcl == sql[0]].index[0]
+    # sql.index = sql.index + (idx - sql.index[0])
+    # orcl = orcl.reindex(sql.index, method='nearest')
+    # ax = (sql - orcl).plot(label="SQL - ORACLE")
+    # plt.legend()
+    # plt.show()
+    # plt.cla()
     if not oracle:
+        utc = pd.datetime.utcnow().astimezone().utcoffset()
+        time_last -= utc
+        time_first -= utc
         query = (
-            f" SELECT EVENT_TIME, Tags.TAG_DESC, EVENT_VALUE"
+            f" SELECT EVENT_TIME, Tags.TAG_DESC, EVENT_VALUE, Tags.TAG_ID"
             f"    FROM EVENTS INNER JOIN Tags ON EVENTS.TAG_ID = Tags.TAG_ID"
             f" WHERE OBJECT_NO = ( select OBJECT_NO from Objects WHERE ASSET_CODE = '{asset_code}') "
             f"    AND TAG_DESC in {tags}"
@@ -338,7 +369,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
         df = get_data_sql(query)
 
     else:
-        query = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE "
+        query = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE, SC_TAG.TAG_ID "
                  f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
                  f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
                  f" WHERE "
@@ -347,7 +378,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
                  f" AND EVENT_TIME <= TO_DATE('{time_last.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
                  f" ORDER BY EVENT_TIME")
         df = get_data_ordb(query)
-
+    print(df.to_string())
     USL = df.loc[df["TAG_DESC"] == 'U/S Water Level'].set_index("EVENT_TIME")
     DSL = df.loc[df["TAG_DESC"] == 'D/S Water Level'].set_index("EVENT_TIME")
 
@@ -465,7 +496,8 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
                 integral = max(integral) * 1000
 
                 if show:
-                    ax2 = ax.twinx()
+                    plt.title = f"{link_obj}"
+                    ax2:plt.Axes = ax.twinx()
                     FLOW_df.plot(x="EVENT_TIME", y="EVENT_VALUE", label="FLOW", ax=ax2, color="#9467bd", alpha=0.2)
                     ax2.set_ylabel("FLOW (m3/s)")
                     box = ax.get_position()
