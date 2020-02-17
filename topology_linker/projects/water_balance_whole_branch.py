@@ -68,7 +68,7 @@ obj_data = obj_data.set_index("OBJECT_NO")
 out_df, vol_metadata = volume(obj_data, link_list, period_start, period_end, show=show)
 meters_not_checked, meters_not_read, manual_meters, telemetered, meters, meters_neg = vol_metadata
 
-out_df["diff"] = (out_df["RTU_totaliser (ML)"] - out_df["flow_integral (ML)"]) / out_df[["RTU_totaliser (ML)", "flow_integral (ML)"]].max(axis=1)
+out_df["diff"] = (out_df["RTU_totaliser (ML)"] - out_df["flow_integral (ML)"]) / out_df[["RTU_totaliser (ML)", "flow_integral (ML)"]].max(axis=1) * 100
 print(out_df.to_string())
 print()
 
@@ -120,9 +120,9 @@ if export:
 
     if not debug:
         cols = ["outlet",  "RTU_totaliser (ML)", "manual_reading (ML)"]
-        out_df[cols].to_csv(path_or_buf=fh, index=False)
+        out_df[cols].to_csv(path_or_buf=fh, index=False, float_format='%.2f')
     else:
-        out_df.to_csv(path_or_buf=fh, index=False)
+        out_df.to_csv(path_or_buf=fh, index=False, float_format='%.2f')
 
     if not debug:
         meters_not_read = out_df.loc[out_df["object_id"].isin(meters_not_read), "outlet"].values.tolist()
