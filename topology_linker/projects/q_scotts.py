@@ -3,7 +3,7 @@ and calculate the flow from that period."""
 from typing import Union
 import pandas as pd
 from scipy import integrate
-import  matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 from fginvestigation.extraction import get_data_ordb, get_data_sql
 from topology_linker.src.utils import _Q_flume
 

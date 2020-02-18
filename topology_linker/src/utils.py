@@ -290,8 +290,9 @@ def _Q_flume(h1: float, h2: float, alpha: float, beta: float, b: float) -> float
            isinstance(beta, float) & \
            isinstance(b, float)
     if h1 == 0.0:
+        print(f"Warning! h1 was zero H1 = {h1}, H2 = {h2}")
         h1 = 1e-6  # in case of zero division
-        print("Warning! h1 was zero")
+        return 0.0
     if h2 < 0.0:
         h2 = 0.0
 
@@ -316,7 +317,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
             no_gates: int, gate_width: float) -> float:
     """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
     and calculate the flow from that period. Wrapper for _Q_flume()"""
-    oracle = False
+    oracle = True
     show = True
 
     asset_code = asset_id[0]
@@ -378,7 +379,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
                  f" AND EVENT_TIME <= TO_DATE('{time_last.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
                  f" ORDER BY EVENT_TIME")
         df = get_data_ordb(query)
-    print(df.to_string())
+    #print(df.to_string())
     USL = df.loc[df["TAG_DESC"] == 'U/S Water Level'].set_index("EVENT_TIME")
     DSL = df.loc[df["TAG_DESC"] == 'D/S Water Level'].set_index("EVENT_TIME")
 
@@ -406,7 +407,8 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
         Qs.append(Q)  # m3/
 
     out["FG_flow_calc"] = Qs
-
+    out["FG_flow_calc"].interpolate(inplace=True)
+    CF.interpolate(inplace=True)
     ax = out.plot()
 
     first = out.index.values[0]

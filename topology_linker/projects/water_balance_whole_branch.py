@@ -12,14 +12,14 @@ import fginvestigation.extraction as ext
 from topology_linker.src.constants import DS_METER, DS_ESC
 from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
 
-export = True #whether to create a waterbalance csv
+export = False #whether to create a waterbalance csv
 debug = True # extra columns in output
-show = False #whether to show charts for every meter as the balance is created
+show = True #whether to show charts for every meter as the balance is created
 topology = False #whether to make a .txt file of the branch topology
 
 #I made a mistake when naming end and start a long time ago - they actually refer to their opposites
-period_end = pd.datetime(year=2019, month=12, day=16, hour=00)
-period_start = pd.datetime(year=2020, month=1, day=17, hour=00)
+period_end = pd.datetime(year=2020, month=1, day=16, hour=00)
+period_start = pd.datetime(year=2020, month=2, day=17, hour=00)
 
 file_name = f"../out/SysEff-{period_start.strftime('%Y%m%d')}"
 
