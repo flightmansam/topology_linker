@@ -14,6 +14,7 @@ def addPageNumber(canvas:canvas.Canvas, doc):
     """
     page_num = canvas.getPageNumber()
     text = f"Page {page_num}"
+    canvas.setFontSize(10)
     canvas.drawCentredString(doc.pagesize[0]/2, doc.bottomMargin / 2, text)
 
 def csv2pdftable(fh, title: str, saveloc: str = None):
@@ -60,6 +61,7 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
 
     meters = []
     end = None
+    date = None
     #find idx for end of meter table
     for index, line in enumerate(lines[17:]):
         if index == 0:
@@ -69,6 +71,7 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
         meters.append(p)
         if "Total," in line:
             end = index
+            date = lines[index+2+17]
             break
     styleT2 = [
         ('GRID', (0, 0), (-1, -2), 0.5, colors.black),
@@ -78,6 +81,8 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
     table._colWidths[0] = 3*cm
     flow.append(table)
     print(end)
+
+    flow.append(Paragraph(date.replace(',', '').strip(), styleN))
 
     meters_not_read = None
     table = []
@@ -110,6 +115,6 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
 
     doc.build(flow, onLaterPages=addPageNumber)
 
-title = "../out/SysEff-20200117-report_addendum"
+title = "../out/SysEff-20200217-report"
 with open(f"{title}.csv", 'r') as fh:
-    csv2pdftable(fh, f"{title}_1")
+    csv2pdftable(fh, f"{title}")

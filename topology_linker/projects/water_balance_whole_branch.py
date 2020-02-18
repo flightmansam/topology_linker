@@ -12,9 +12,9 @@ import fginvestigation.extraction as ext
 from topology_linker.src.constants import DS_METER, DS_ESC
 from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
 
-export = False #whether to create a waterbalance csv
-debug = True # extra columns in output
-show = True #whether to show charts for every meter as the balance is created
+export = True #whether to create a waterbalance csv
+debug = False # extra columns in output
+show = False #whether to show charts for every meter as the balance is created
 topology = False #whether to make a .txt file of the branch topology
 
 #I made a mistake when naming end and start a long time ago - they actually refer to their opposites
@@ -115,18 +115,18 @@ if export:
                    f"Telemetered:, {len(telemetered)}\n",
                    f"Manually read:, {len(manual_meters)} \n",
                    f"Unmetered sites:, {len(meters_not_checked)}\n",
-                   f"Total:, {len(meters)}\n",
-                   "\n" if len(meters_not_read) == 0 else f"{len(meters_not_read)} manually read meters are missing up to date readings.\n\n"])
+                   f"Total:, {len(meters_not_checked)+len(manual_meters)+len(telemetered)}\n",
+                   "\n" if len(meters_not_read) == 0 else f"{len(meters_not_read)} manually read meters are missing up to date readings.\n"])
 
     if not debug:
         cols = ["outlet",  "RTU_totaliser (ML)", "manual_reading (ML)"]
-        out_df[cols].to_csv(path_or_buf=fh, index=False, float_format='%.2f')
+        out_df[cols].to_csv(path_or_buf=fh, index=False, float_format='%.1f')
     else:
-        out_df.to_csv(path_or_buf=fh, index=False, float_format='%.2f')
+        out_df.to_csv(path_or_buf=fh, index=False, float_format='%.3f')
 
     if not debug:
         meters_not_read = out_df.loc[out_df["object_id"].isin(meters_not_read), "outlet"].values.tolist()
-        fh.writelines([f", Total, {RTU:.1f}, {MAN:.1f}\n"
+        fh.writelines([f"Total, {RTU:.1f}, {MAN:.1f}\n"
                    "\n",
                    f"time of data collection: {pd.datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
                    "\n",
