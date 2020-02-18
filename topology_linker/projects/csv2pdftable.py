@@ -61,13 +61,13 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
     meters = []
     end = None
     #find idx for end of meter table
-    for index, line in enumerate(lines[18:]):
-        if index==0:
+    for index, line in enumerate(lines[17:]):
+        if index == 0:
             p = line.strip().split(',')
         else:
             p = [Paragraph(l, styleN) for l in line.strip().split(',')]
         meters.append(p)
-        if ", Total," in line:
+        if "Total," in line:
             end = index
             break
     styleT2 = [
@@ -99,7 +99,7 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
             tries = None
             break
 
-    if tries is not None:
+    if tries is not None and len(table) > 0:
         table = table.reshape([-1, 3])
         print(table.shape)
         table = table.tolist()
@@ -110,6 +110,6 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
 
     doc.build(flow, onLaterPages=addPageNumber)
 
-
-with open("../out/SysEff-20200117-report.csv", 'r') as fh:
-    csv2pdftable(fh, "test")
+title = "../out/SysEff-20200117-report_addendum"
+with open(f"{title}.csv", 'r') as fh:
+    csv2pdftable(fh, f"{title}_1")

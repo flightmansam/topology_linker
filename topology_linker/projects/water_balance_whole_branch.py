@@ -132,7 +132,7 @@ if export:
                    "\n",
                    f"meters not read:\n"] + [','+ meter +'\n' for meter in meters_not_read])
     else:
-        fh.writelines([f", Total, {RTU}, {INT}, {MAN}\n"
+        fh.writelines([f", Total, {RTU:.1f}, {INT:.1f}, {MAN:.1f}\n"
                    "\n",
                    f"time of data collection: {pd.datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
                    "\n",
