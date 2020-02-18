@@ -316,7 +316,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
             no_gates: int, gate_width: float) -> float:
     """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
     and calculate the flow from that period. Wrapper for _Q_flume()"""
-    oracle = False
+    oracle = True
     show = True
 
     asset_code = asset_id[0]
