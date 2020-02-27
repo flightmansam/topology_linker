@@ -115,6 +115,6 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
 
     doc.build(flow, onLaterPages=addPageNumber)
 
-title = "../out/SysEff-20200217-report"
+title = "../out/SysEff-20200217_2-report"
 with open(f"{title}.csv", 'r') as fh:
     csv2pdftable(fh, f"{title}")
