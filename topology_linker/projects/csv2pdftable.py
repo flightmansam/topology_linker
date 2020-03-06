@@ -62,8 +62,9 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
     meters = []
     end = None
     date = None
+    offset = 18
     #find idx for end of meter table
-    for index, line in enumerate(lines[17:]):
+    for index, line in enumerate(lines[offset:]):
         if index == 0:
             p = line.strip().split(',')
         else:
@@ -71,7 +72,7 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
         meters.append(p)
         if "Total," in line:
             end = index
-            date = lines[index+2+17]
+            date = lines[index+2+offset]
             break
     styleT2 = [
         ('GRID', (0, 0), (-1, -2), 0.5, colors.black),
@@ -115,6 +116,6 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
 
     doc.build(flow, onLaterPages=addPageNumber)
 
-title = "../out/SysEff-20200217-report"
+title = "../out/SysEff-20200117-report_addendum"
 with open(f"{title}.csv", 'r') as fh:
-    csv2pdftable(fh, f"{title}")
+    csv2pdftable(fh, f"{title}_1")
