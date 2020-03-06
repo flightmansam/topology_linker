@@ -14,8 +14,9 @@ from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
 
 export = True #whether to create a waterbalance csv
 debug = False # extra columns in output
-show = False #whether to show charts for every meter as the balance is created
+show = True #whether to show charts for every meter as the balance is created
 topology = True #whether to make a .txt file of the branch topology
+use_regs = True
 
 
 #I made a mistake when naming end and start a long time ago - they actually refer to their opposites
@@ -106,19 +107,27 @@ EVAP = ((area * ET) / 1000000) * 0.8
 print(out_df.to_string())
 if export:
 
-    RTU = out_df['RTU_totaliser (ML)'].sum()
-    INT = out_df["flow_integral (ML)"].sum()
-    MAN = out_df["manual_reading (ML)"].sum()
+    if use_regs:
+        RTU = out_df.loc[out_df["FG_calc (ML)"].isna(), 'RTU_totaliser (ML)'].sum()
+        INT = out_df.loc[out_df["FG_calc (ML)"].isna(), "flow_integral (ML)"].sum()
+        MAN = out_df.loc[out_df["FG_calc (ML)"].isna(), "manual_reading (ML)"].sum()
+        REG = out_df["FG_calc (ML)"].sum()
+
+    else:
+        RTU = out_df['RTU_totaliser (ML)'].sum()
+        INT = out_df["flow_integral (ML)"].sum()
+        MAN = out_df["manual_reading (ML)"].sum()
+        REG = 0.0
 
     fh.writelines([
-                   f"\nSystem Efficiency (%):, {((RTU + MAN) / IN) * 100:.1f}\n",
+                   f"\nSystem Efficiency (%):, {((RTU + MAN + REG) / IN) * 100:.1f}\n",
                    "\n"])
 
     fh.writelines([f"Diverted (ML):, {IN:.1f}\n",
-                   f"Delivered (ML):, {RTU+MAN:.1f}\n",
+                   f"Delivered (ML):, {RTU + MAN + REG:.1f}\n",
                    f"Evaporative loss (ML):, {EVAP:.1f}\n",
                    f"Seepage loss (ML):, not yet implemented\n",
-                   f"Unaccounted loss (ML):, {IN - (RTU + MAN + EVAP):.1f}\n",
+                   f"Unaccounted loss (ML):, {IN - (RTU + MAN + REG + EVAP):.1f}\n",
                    "\n"])
 
     fh.writelines([f"Outlets\n",
