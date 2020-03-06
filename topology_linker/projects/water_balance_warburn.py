@@ -9,29 +9,30 @@ import io
 import pandas as pd
 import requests
 import fginvestigation.extraction as ext
-from topology_linker.src.constants import DS_METER, DS_ESC
+from topology_linker.src.constants import DS_METER, DS_ESC, US_REG
 from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
 
 export = True #whether to create a waterbalance csv
 debug = False # extra columns in output
 show = False #whether to show charts for every meter as the balance is created
-topology = False #whether to make a .txt file of the branch topology
+topology = True #whether to make a .txt file of the branch topology
+
 
 #I made a mistake when naming end and start a long time ago - they actually refer to their opposites
 period_end = pd.datetime(year=2020, month=1, day=16, hour=00)
 period_start = pd.datetime(year=2020, month=2, day=17, hour=00)
 
-file_name = f"../out/SysEff-{period_start.strftime('%Y%m%d')}_2"
+file_name = f"../out/WARBURN_SysEff-{period_start.strftime('%Y%m%d')}"
 
-SCOTTS = Q_flume(asset_id=('RG-2-698', '29355'),time_first=period_end, time_last=period_start,
-                no_gates=4, gate_width=0.937)
+IN = Q_flume(asset_id=('MITCHELL', '26025'), time_first=period_end, time_last=period_start,
+             alpha=0.738, beta=0.282, no_gates=2, gate_width=1.677, adjust=True)
 
 #NORMALLY this df would be fetched by pulling down the linked table from SQL
-link_df = pd.read_csv("../out/LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', 'LINK_DESCRIPTION', 'POSITION'],
+link_df = pd.read_csv("../out/WARBURN_LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', 'LINK_DESCRIPTION', 'POSITION'],
                  dtype={'OBJECT_NO':str,  'LINK_OBJECT_NO':str, 'LINK_DESCRIPTION':str})
 
-upstream_point = '29355' #scotts
-downstream_point = '65041' #end of the line
+upstream_point = '26025' # WARBURN
+downstream_point = '40949' #end of the line
 
 print("collecting whole topology...")
 link, link_list = get_linked_ojects(object_A=upstream_point,
@@ -39,8 +40,9 @@ link, link_list = get_linked_ojects(object_A=upstream_point,
                                         source=link_df)
 print("done.")
 print(link)
-link_list = link.get_all_of_desc(desc = [DS_METER, DS_ESC])
+link_list = link.get_all_of_desc(desc = [DS_METER, DS_ESC, US_REG])
 lc = link.get_last_child()
+
 
 if export:
     if topology:
@@ -69,8 +71,15 @@ out_df, vol_metadata = volume(obj_data, link_list, period_start, period_end, sho
 meters_not_checked, meters_not_read, manual_meters, telemetered, meters, meters_neg = vol_metadata
 
 out_df["diff"] = (out_df["RTU_totaliser (ML)"] - out_df["flow_integral (ML)"]) / out_df[["RTU_totaliser (ML)", "flow_integral (ML)"]].max(axis=1) * 100
-print(out_df.to_string())
+
 print()
+
+#MI fg calc for REGS
+REGS = link.get_all_of_desc(desc = [US_REG])
+gate_widths = [1.372, 1.372, 1.372]
+no_gates = [1, 1, 1]
+for reg in REGS:
+    out_df.loc[out_df.object_id == reg.object_no, "FG_calc (ML)"] = Q_flume((reg.object_name, reg.object_no), period_end, period_start, no_gates=1, gate_width=gate_widths[0], adjust=True)
 
 ###EVAPORATION
 
@@ -90,10 +99,11 @@ this_month = pd.to_numeric(this_month[this_month.index >= period_end.strftime("%
 
 if debug: print(prev_month, this_month)
 ET = prev_month + this_month
-area = 272747.0
+area = 2200
 
 EVAP = ((area * ET) / 1000000) * 0.8
 
+print(out_df.to_string())
 if export:
 
     RTU = out_df['RTU_totaliser (ML)'].sum()
@@ -101,14 +111,14 @@ if export:
     MAN = out_df["manual_reading (ML)"].sum()
 
     fh.writelines([
-                   f"\nSystem Efficiency (%):, {((RTU + MAN)/ SCOTTS)*100:.1f}\n",
+                   f"\nSystem Efficiency (%):, {((RTU + MAN) / IN) * 100:.1f}\n",
                    "\n"])
 
-    fh.writelines([f"Diverted (ML):, {SCOTTS:.1f}\n",
+    fh.writelines([f"Diverted (ML):, {IN:.1f}\n",
                    f"Delivered (ML):, {RTU+MAN:.1f}\n",
                    f"Evaporative loss (ML):, {EVAP:.1f}\n",
                    f"Seepage loss (ML):, not yet implemented\n",
-                   f"Unaccounted loss (ML):, {SCOTTS - (RTU + MAN + EVAP):.1f}\n",
+                   f"Unaccounted loss (ML):, {IN - (RTU + MAN + EVAP):.1f}\n",
                    "\n"])
 
     fh.writelines([f"Outlets\n",
@@ -119,7 +129,7 @@ if export:
                    "\n" if len(meters_not_read) == 0 else f"{len(meters_not_read)} manually read meters are missing up to date readings.\n"])
 
     if not debug:
-        cols = ["outlet",  "RTU_totaliser (ML)", "manual_reading (ML)"]
+        cols = ["outlet",  "RTU_totaliser (ML)", "manual_reading (ML)", "FG_calc (ML)"]
         out_df[cols].to_csv(path_or_buf=fh, index=False, float_format='%.1f')
     else:
         out_df.to_csv(path_or_buf=fh, index=False, float_format='%.3f')

@@ -1,56 +1,29 @@
 import fginvestigation.extraction as ext
-from topology_linker.src.utils import get_linked_ojects, fix_resets, get_manual_meter
+from topology_linker.src.utils import get_linked_ojects, fix_resets, get_manual_meter, query
 import scipy.integrate as integrate
 import pandas as pd
 import matplotlib.pyplot as plt
 
-meters = (69550,
-          67477,
-          141317,
-          219615,
-          70438,
-          69469,
-          64777,
-          70975,
-          64645,
-          67528,
-          148390,
-          145474,
-          208598,
-          70321,
-          206578,
-          70324,
-          70048,
-          64960,
-          64861,
-          70057,
-          64774,
-          67531,
-          64753,
-          206014,
-          206039,
-          65008,
-          64657,
-          144910,
-          70573,
-          67231,
-          69211,
-          219467,
-          64669,
-          70693,
-          64729,
-          69541)
+meters = ("MITCHELLS",
+          "M2362B/1",
+          "M2364B/1",
+          "B18/1",
+          "B18A/P",
+          "B18B/1",
+          "CH7BN-1",
+          "M2364C/1",
+          "OT TABBITA",
+          "WARBURN SPLIT")
 
-query = ("SELECT *"
-         f" FROM METER_READING"
-         f" WHERE SP_OBJECT_NO in {meters}")
+object_IDS= query(meters)
+
 
 # query = ("SELECT *"
 #          f" FROM OBJECT_ATTR_VALUE"
 #          f" WHERE OBJECT_NO = '31210'"
 #          f" FETCH NEXT 10000 ROWS ONLY")
 #
-obj_data = ext.get_data_ordb(query)
+#obj_data = ext.get_data_ordb(query)
 #
 period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
 # asset_code = 'RG-2-698'
@@ -123,41 +96,41 @@ period_start = (pd.datetime(year=2019, month=11, day=9, hour=00))
 
 period_end = (pd.datetime(year=2019, month=10, day=1, hour=00, second=43, microsecond=432)).strftime("%Y-%m-%d %H:%M:%S")
 period_start = (pd.datetime(year=2019, month=11, day=30, hour=00))#.strftime("%Y-%m-%d %H:%M:%S")
-#period_start = (pd.datetime.now() - pd.Timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
-import io
-import requests
-url = f"http://www.bom.gov.au/watl/eto/tables/nsw/griffith_airport/griffith_airport-{period_start.year}{period_start.month}.csv"
-s = requests.get(url).content
-prev_month = pd.read_csv(io.StringIO(s.decode('utf-8', errors='ignore')))
-prev_month = prev_month[prev_month.iloc[:, 0] == "GRIFFITH AIRPORT"]
-prev_month = prev_month.set_index([prev_month.iloc[:, 1]])
-prev_month = pd.to_numeric(prev_month[prev_month.index >= "16/11/2019"].iloc[:, 2]).sum()
+# #period_start = (pd.datetime.now() - pd.Timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+# import io
+# import requests
+# url = f"http://www.bom.gov.au/watl/eto/tables/nsw/griffith_airport/griffith_airport-{period_start.year}{period_start.month}.csv"
+# s = requests.get(url).content
+# prev_month = pd.read_csv(io.StringIO(s.decode('utf-8', errors='ignore')))
+# prev_month = prev_month[prev_month.iloc[:, 0] == "GRIFFITH AIRPORT"]
+# prev_month = prev_month.set_index([prev_month.iloc[:, 1]])
+# prev_month = pd.to_numeric(prev_month[prev_month.index >= "16/11/2019"].iloc[:, 2]).sum()
 
 
-query = (f"SELECT EVENT_TIME, TAG_DESC, EVENT_VALUE "
-                             f" FROM SC_EVENT_LOG"
-                             f" WHERE TAG_ID IN"
-                             f" ( SELECT TAG_ID FROM SC_TAG WHERE"
-                             f" OBJECT_NO IN {tuple(link_list)} AND TAG_NAME = 'FLOW_VAL')"
-                             f" AND EVENT_TIME > TO_DATE('{period_end}', 'YYYY-MM-DD HH24:MI:SS')"
-                             f" AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
-                             f" ORDER BY EVENT_TIME DESC")
+# query = (f"SELECT EVENT_TIME, TAG_DESC, EVENT_VALUE "
+#                              f" FROM SC_EVENT_LOG"
+#                              f" WHERE TAG_ID IN"
+#                              f" ( SELECT TAG_ID FROM SC_TAG WHERE"
+#                              f" OBJECT_NO IN {tuple(link_list)} AND TAG_NAME = 'FLOW_VAL')"
+#                              f" AND EVENT_TIME > TO_DATE('{period_end}', 'YYYY-MM-DD HH24:MI:SS')"
+#                              f" AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
+#                              f" ORDER BY EVENT_TIME DESC")
 
 
 #q = ext.get_data_ordb(query)
 
 
-query = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE "
+query1 = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE, OBJECT_NO"
                              f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
                              f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
                              f" WHERE " 
-                             f" OBJECT_NO IN {tuple(link_list)} AND TAG_DESC in ('Gate 1 Elevation', 'U/S Water Level', 'D/S Water Level')"
+                             f" OBJECT_NO in ('26025', '26054', '26104', '40949') AND TAG_DESC in ('Gate 1 Elevation', 'U/S Water Level', 'D/S Water Level', 'Gate 1 Width')"
                              f" AND EVENT_TIME > TO_DATE('{period_end}', 'YYYY-MM-DD HH24:MI:SS')"
-                             f"AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
+                             f" AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
                              f" ORDER BY EVENT_TIME")
 
 
-obj_data = ext.get_data_ordb(query)
+obj_data = ext.get_data_ordb(query1)
 obj_data = obj_data.astype({"OBJECT_NO":str, "EVENT_VALUE":float})
 obj_data = obj_data.set_index("OBJECT_NO")
 

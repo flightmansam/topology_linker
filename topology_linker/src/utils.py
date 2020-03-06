@@ -313,10 +313,15 @@ def invert_Q_flume(Q:Union[float, pd.Series], C_D:float, b:float) -> Union[float
 
 
 def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
-            alpha: float, beta: float,
-            no_gates: int, gate_width: float) -> float:
+            no_gates: int, gate_width: float,
+            alpha: float = 0.738, beta: float=0.282, adjust=False) -> float:
     """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
-    and calculate the flow from that period. Wrapper for _Q_flume()"""
+    and calculate the flow from that period. Wrapper for _Q_flume()
+
+    Parameters
+    ----------alpha, beta=0.282
+    adjust : Whether the code will simply adjust the flume gate (False) or calculate flow completely (True)
+    """
     oracle = True
     show = True
 
@@ -379,52 +384,69 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
                  f" AND EVENT_TIME <= TO_DATE('{time_last.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
                  f" ORDER BY EVENT_TIME")
         df = get_data_ordb(query)
-    #print(df.to_string())
-    USL = df.loc[df["TAG_DESC"] == 'U/S Water Level'].set_index("EVENT_TIME")
-    DSL = df.loc[df["TAG_DESC"] == 'D/S Water Level'].set_index("EVENT_TIME")
 
-    GATES = pd.DataFrame()
-    for i in range(1, no_gates + 1):
-        G = df.loc[df["TAG_DESC"] == f'Gate {i} Elevation'].set_index("EVENT_TIME")["EVENT_VALUE"]
-        G.columns = pd.Index([f"{i}"])
-        GATES = GATES.join(G, how="outer", lsuffix="l_")
-    GATES = GATES.interpolate()
-    G_av = GATES.sum(axis=1) / no_gates
+    #pivot and interpolate all the data
+    df = df.pivot("EVENT_TIME", "TAG_DESC", "EVENT_VALUE")
 
-    CF = df.loc[df["TAG_DESC"] == "Current Flow"].set_index("EVENT_TIME")["EVENT_VALUE"] / 86.4
+    cols = {
+        'U/S Water Level':"USL",
+        'D/S Water Level':"DSL",
+        'Current Flow': "QRC"
+    }
+    GATES = [f'Gate {i} Elevation' for i in range(1, no_gates + 1)]
 
-    out = pd.merge(USL["EVENT_VALUE"], DSL["EVENT_VALUE"], "inner", on="EVENT_TIME", suffixes=("_USL", "_DSL"))
-    out = out.join(G_av.to_frame(), how="inner", rsuffix="_G_av")
-    out.columns = pd.Index(["USL", "DSL", "G_av"])
+    df.rename(columns=cols, inplace=True)
 
-    Qs = []
-    for idx in out.index.values:
-        Q = _Q_flume(h1=out.loc[idx, "USL"] - out.loc[idx, "G_av"],
-                     h2=out.loc[idx, "DSL"] - out.loc[idx, "G_av"],
-                     alpha=alpha,
-                     beta=beta,
-                     b=no_gates * gate_width)
-        Qs.append(Q)  # m3/
+    # #set zeros to NA and then interpolate
+    df.USL.loc[df.USL == 0.0] = pd.np.NaN
+    df.DSL.loc[df.DSL == 0.0] = pd.np.NaN
+    for gate in GATES:
+        df[gate].loc[df[gate] == 0.0] = pd.np.NaN
 
-    out["FG_flow_calc"] = Qs
-    out["FG_flow_calc"].interpolate(inplace=True)
-    CF.interpolate(inplace=True)
-    ax = out.plot()
+    df.interpolate(limit_direction='both', inplace=True)
 
-    first = out.index.values[0]
-    delta_t = [pd.Timedelta(td - first).total_seconds() for td in out.index.values]
-    FG_integral = integrate.cumtrapz(y=out["FG_flow_calc"].values, x=delta_t) / 1000
-    FG_integral = pd.Series(data=FG_integral, index=out.index.values[1:]).transpose()
+    df["G_av"] = df[GATES].sum(axis=1) / no_gates
+
+    df.QRC /= 86.4 # convert to m3/s
+
+    h1 = df.USL - df.G_av
+    h2 = df.DSL - df.G_av
+
+    if adjust:
+        h2 = 0 if h2 < 0 else h2
+        df["QMI"] = 1.0054495 * df.QRC * (1 - (h2/h1)) ** 0.0576
+
+    else:
+        Qs = []
+        for idx in df.index.values:
+            Q = _Q_flume(h1[idx],
+                         h2[idx],
+                         alpha=alpha,
+                         beta=beta,
+                         b=no_gates * gate_width)
+            Qs.append(Q)  # m3/
+
+        df["QMI"] = Qs
+
+    df["QMI"].interpolate(inplace=True)
+    ax = df.plot()
+    h1.plot(label="H1", ax=ax)
+    h2.plot(label="H2", ax=ax)
+    print(df.isna().any().to_string())
+
+    first = df.index.values[0]
+    delta_t = [pd.Timedelta(td - first).total_seconds() for td in df.index.values]
+    FG_integral = integrate.cumtrapz(y=df["QMI"].values, x=delta_t) / 1000
+    FG_integral = pd.Series(data=FG_integral, index=df.index.values[1:]).transpose()
     FG = max(FG_integral)
-    label = f"FG_flow: INTEGRAL -> {FG:.1f} ML"
+    label = f"QMI: INTEGRAL -> {FG:.1f} ML"
     print(label)
 
-    CF.plot(label="CURRENT FLOW", ax=ax)
-    delta_t = [pd.Timedelta(td - first).total_seconds() for td in CF.index.values]
-    CF_integral = integrate.cumtrapz(y=CF.values, x=delta_t) / 1000  # ?
-    CF_integral = pd.Series(data=CF_integral, index=CF.index.values[1:]).transpose()
-    CF = max(CF_integral)
-    label = f"CF: INTEGRAL -> {CF:.1f} ML"
+    delta_t = [pd.Timedelta(td - first).total_seconds() for td in df.QRC.index.values]
+    CF_integral = integrate.cumtrapz(y=df.QRC.values, x=delta_t) / 1000  # ?
+    CF_integral = pd.Series(data=CF_integral, index=df.QRC.index.values[1:]).transpose()
+    QRC = max(CF_integral)
+    label = f"QRC: INTEGRAL -> {QRC:.1f} ML"
     print(label)
     ax.legend()
     plt.title = asset_code
