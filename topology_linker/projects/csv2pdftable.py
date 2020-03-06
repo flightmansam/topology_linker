@@ -62,7 +62,7 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
     meters = []
     end = None
     date = None
-    offset = 18
+    offset = 17
     #find idx for end of meter table
     for index, line in enumerate(lines[offset:]):
         if index == 0:
@@ -116,6 +116,6 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
 
     doc.build(flow, onLaterPages=addPageNumber)
 
-title = "../out/SysEff-20200117-report_addendum"
+title = "../out/WARBURN_SysEff-20200217-report"
 with open(f"{title}.csv", 'r') as fh:
-    csv2pdftable(fh, f"{title}_1")
+    csv2pdftable(fh, f"{title}")

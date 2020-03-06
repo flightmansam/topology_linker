@@ -15,13 +15,13 @@ from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
 export = True #whether to create a waterbalance csv
 debug = False # extra columns in output
 show = True #whether to show charts for every meter as the balance is created
-topology = True #whether to make a .txt file of the branch topology
+topology = False #whether to make a .txt file of the branch topology
 use_regs = True #whether to take Q_flume adjustment for regs or not
 
 
 #I made a mistake when naming end and start a long time ago - they actually refer to their opposites
-period_end = pd.datetime(year=2020, month=1, day=16, hour=00)
-period_start = pd.datetime(year=2020, month=2, day=17, hour=00)
+period_end = pd.datetime(year=2019, month=11, day=16, hour=00)
+period_start = pd.datetime(year=2019, month=12, day=17, hour=00)
 
 file_name = f"../out/WARBURN_SysEff-{period_start.strftime('%Y%m%d')}"
 

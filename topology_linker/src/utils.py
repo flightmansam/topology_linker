@@ -413,7 +413,8 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
     h2 = df.DSL - df.G_av
 
     if adjust:
-        h2 = 0 if h2 < 0 else h2
+        #h2 = 0 if h2 < 0 else h2
+        h2.loc[h2 < 0] = 0
         df["QMI"] = 1.0054495 * df.QRC * (1 - (h2/h1)) ** 0.0576
 
     else:
