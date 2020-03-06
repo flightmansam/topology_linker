@@ -16,7 +16,7 @@ export = True #whether to create a waterbalance csv
 debug = False # extra columns in output
 show = True #whether to show charts for every meter as the balance is created
 topology = True #whether to make a .txt file of the branch topology
-use_regs = True
+use_regs = True #whether to take Q_flume adjustment for regs or not
 
 
 #I made a mistake when naming end and start a long time ago - they actually refer to their opposites
@@ -33,7 +33,7 @@ link_df = pd.read_csv("../out/WARBURN_LINKED.csv", usecols=['OBJECT_NO',  'LINK_
                  dtype={'OBJECT_NO':str,  'LINK_OBJECT_NO':str, 'LINK_DESCRIPTION':str})
 
 upstream_point = '26025' # WARBURN
-downstream_point = '40949' #end of the line
+downstream_point = '40949' # end of the line
 
 print("collecting whole topology...")
 link, link_list = get_linked_ojects(object_A=upstream_point,
