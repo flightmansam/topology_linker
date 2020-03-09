@@ -12,8 +12,8 @@ import fginvestigation.extraction as ext
 from topology_linker.src.constants import DS_METER, DS_ESC, US_REG
 from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
 
-export = True #whether to create a waterbalance csv
-debug = False # extra columns in output
+export = False #whether to create a waterbalance csv
+debug = True # extra columns in output
 show = True #whether to show charts for every meter as the balance is created
 topology = True #whether to make a .txt file of the branch topology
 use_regs = True #whether to take Q_flume adjustment for regs or not
