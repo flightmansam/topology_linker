@@ -27,7 +27,7 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
     styles = getSampleStyleSheet()
     styleN = styles['Normal']
     styleN.spaceAfter = 2
-    print(styles)
+
     styleT = [
         ('GRID', (0, 0), (-1, -1), 0.5, colors.black)
     ]
@@ -114,6 +114,6 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
     doc.build(flow, onLaterPages=addPageNumber)
 
 if __name__ == "__main__":
-    title = "../out/WARBURN_SysEff-20191217-report"
+    title = "../out/WARBURN_SysEff-20200217-report"
     with open(f"{title}.csv", 'r') as fh:
         csv2pdftable(fh, title)

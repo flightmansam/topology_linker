@@ -132,10 +132,12 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     if debug: print(prev_month.to_string(), this_month.to_string())
     ET = prev_month_ET + this_month_ET
     RF = prev_month_RF + this_month_RF
-    area = 2200
+    area = 22000
 
     EVAP = ((area * ET) / 1000000) * 0.8
-    RAINFALL = (area * ET) / 1000000
+    RAINFALL = (area * RF) / 1000000
+
+    print(f"EVAP: {EVAP}, RAINFALL: {RAINFALL}")
 
     if export:
 
@@ -152,11 +154,11 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
             REG = 0.0
 
         fh.writelines([
-            f"\nSystem Efficiency (%):, {((RTU + MAN + REG) / IN) * 100:.1f}\n",
+            f"\nSystem Efficiency (%):, {((RTU + MAN) / (IN - REG)) * 100:.1f}\n",
             "\n"])
 
         fh.writelines([f"Diverted (ML):, {IN:.1f}\n",
-                       f"Delivered (ML):, {RTU + MAN + REG:.1f}\n",
+                       f"Delivered (ML):, {RTU:.1f}\n",
                        f"Evaporative loss (ML):, {EVAP:.1f}\n",
                        f"Rainfall (ML):, {RAINFALL:.1f}\n",
                        f"Seepage loss (ML):, not yet implemented\n",
@@ -205,7 +207,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
 
 
 if __name__ == "__main__":
-    period_start = pd.datetime(year=2020, month=1, day=16, hour=00)
+    period_start = pd.datetime(year=2019, month=11, day=16, hour=00)
     period_end = pd.datetime(year=2020, month=2, day=17, hour=00)
-    json = water_balance("WARBURN", '26025', '40949', "../out/WARBURN_LINKED.csv", period_start, period_end, use_regs=True, show=False)
+    json = water_balance("WARBURN", '26025', '40949', "../out/WARBURN_LINKED.csv", period_start, period_end, use_regs=True, show=False, export=True)
     print(json)
