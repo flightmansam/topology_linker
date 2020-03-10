@@ -46,23 +46,22 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
                       hAlign='LEFT', spaceBefore=2*styleN.fontSize,spaceAfter=2*styleN.fontSize))
 
     volumes = []
-    for line in lines[5:10]:
+    for line in lines[5:11]:
         volumes.append(line.strip().split(',')[:2])
-    print(volumes)
     flow.append(Table(volumes, style=styleT, hAlign='LEFT', spaceAfter=styleN.fontSize))
 
-    outlets = [Paragraph(lines[11].replace(',', ''), styleN)]
+    outlets = [Paragraph(lines[12].replace(',', ''), styleN)]
     table = []
-    for line in lines[12:16]:
+    for line in lines[13:17]:
         table.append(line.strip().split(',')[:2])
     outlets.append(Table(table, style=styleT, hAlign='LEFT'))
-    outlets.append(Paragraph(lines[16].replace(',', '')+ "<br />"+ "<br />", styleN))
+    outlets.append(Paragraph(lines[17].replace(',', '')+ "<br />"+ "<br />", styleN))
     flow.append(KeepTogether(outlets))
 
     meters = []
     end = None
     date = None
-    offset = 17
+    offset = 18
     #find idx for end of meter table
     for index, line in enumerate(lines[offset:]):
         if index == 0:
@@ -81,7 +80,6 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
     table = Table(meters, style=styleT2, hAlign='LEFT', spaceAfter=styleN.fontSize, repeatRows=1)
     table._colWidths[0] = 3*cm
     flow.append(table)
-    print(end)
 
     flow.append(Paragraph(date.replace(',', '').strip(), styleN))
 
@@ -107,7 +105,6 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
 
     if tries is not None and len(table) > 0:
         table = table.reshape([-1, 3])
-        print(table.shape)
         table = table.tolist()
 
         table = Table(table, hAlign='LEFT', spaceAfter=styleN.fontSize)
@@ -116,6 +113,7 @@ def csv2pdftable(fh, title: str, saveloc: str = None):
 
     doc.build(flow, onLaterPages=addPageNumber)
 
-title = "../out/WARBURN_SysEff-20200217-report"
-with open(f"{title}.csv", 'r') as fh:
-    csv2pdftable(fh, f"{title}")
+if __name__ == "__main__":
+    title = "../out/WARBURN_SysEff-20191217-report"
+    with open(f"{title}.csv", 'r') as fh:
+        csv2pdftable(fh, title)
