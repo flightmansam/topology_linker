@@ -19,7 +19,7 @@ from topology_linker.projects.csv2pdftable import csv2pdftable
 
 period_start = pd.datetime(year=2019, month=6, day=1, hour=00)
 period_start = pd.datetime(year=2019, month=5, day=1, hour=00)
-period_end = pd.datetime(year=2019, month=8, day=1, hour=00)
+period_end = pd.datetime(year=2020, month=3, day=11, hour=00)
 
 print("collecting topology...")
 upstream_point = '26025'
@@ -36,7 +36,7 @@ link_df = pd.read_csv(link_df,
 link, link_list = get_linked_ojects(object_A=upstream_point,
                                     object_B=downstream_point,
                                     source=link_df)
-link_list = [link] + link.get_all_of_desc(desc=US_REG)
+link_list = [link] + link.get_all_of_desc(desc=[US_REG, DS_METER])
 
 print("done.")
 
@@ -55,7 +55,7 @@ obj_data = obj_data.astype({"OBJECT_NO": str, "EVENT_VALUE": float})
 all_zeros = None
 for object_no in obj_data.OBJECT_NO.unique():
     data = obj_data.loc[obj_data.OBJECT_NO == object_no, :].pivot_table(index="EVENT_TIME", columns="TAG_NAME").interpolate(limit_direction="both")
-    #data.plot()
+    data.plot()
 
     # get all the times it transitions from >=threshold -> < threshold and < threshold -> =< threshold
     data["THRESH"] = data.EVENT_VALUE.FLOW_VAL > threshold
@@ -67,8 +67,8 @@ for object_no in obj_data.OBJECT_NO.unique():
         all_zeros[object_no] = data["THRESH"]
 
     data = data.loc[((data.THRESH == True) & (data.shift(-1).THRESH == False)) | ((data.THRESH == True) & (data.shift().THRESH == False))]
-    # for x in data.index:
-    #     plt.axvline(x, color='r')
+    for x in data.index:
+        plt.axvline(x, color='r')
 
     data = data.reset_index()
 
@@ -79,8 +79,8 @@ for object_no in obj_data.OBJECT_NO.unique():
     # %zero
     time = 100 * time_thresh / (period_end - period_start)
     print(f"% time {object_no} is 0 = {time:.1f}%")
-
-    #plt.show()
+    plt.title(object_no)
+    plt.show()
 
     print()
 
@@ -93,8 +93,9 @@ overlap = all_zeros#.loc[(all_zeros == True).all(axis=1)]
 
 edges = overlap.loc[(~(overlap == True).any(axis=1) & (overlap.shift(-1) == True).any(axis=1))|(~(overlap == True).any(axis=1) &(overlap.shift() == True).any(axis=1))]
 #overlap.loc[(~(overlap == True).any(axis=1) & (overlap.shift(-1) == True).any(axis=1)) | ((data.THRESH == True) & (data.shift().THRESH == False))]
-DSL = obj_data.pivot_table(index=["EVENT_TIME"], columns=["TAG_NAME", "OBJECT_NO"]).interpolate().EVENT_VALUE[["DSL_VAL", "USL_VAL"]]
+DSL = obj_data.pivot_table(index=["EVENT_TIME"], columns=["TAG_NAME", "OBJECT_NO"]).interpolate().EVENT_VALUE
 DSL.plot()
+DSL = DSL[["DSL_VAL", "USL_VAL"]]
 for x in edges.index:
     plt.axvline(x, color='r')
 
@@ -105,6 +106,7 @@ time_thresh = time_thresh[1::2].sum()  # get every second result the sum is the 
 
 # %zero
 time = 100 * time_thresh / (period_end - period_start)
+print(len(edges))
 print(f"% time all meters is 0 = {time:.1f}%")
 print()
 
@@ -116,7 +118,7 @@ edges = edges.set_index("EVENT_TIME")
 i = 0
 for lhs, rhs in zip(edges.index[::2], edges.index[1::2]):
     print(lhs, rhs)
-    trim = 0.1 #trim the first
+    trim = 0.0 #trim the first
     trim = trim*(rhs-lhs)
     print(f"trimmed by {trim}")
     print(lhs+trim, rhs)
@@ -128,15 +130,16 @@ for lhs, rhs in zip(edges.index[::2], edges.index[1::2]):
 
         for level in site:
             level_name = level[0]
-            level = site[level]
-            m, c = pd.np.polyfit(x.dt.total_seconds().astype(float), level.values, 1)
-            #convert m to mm/day
-            m = (m * 86400 * 1000)
-            if level_name == 'USL_VAL':
-                out[name][0]+=m
-            else:
-                out[name][1]+=m
-            print(f"{level_name} gradient = {m:.2f} mm/d")
+            if level_name == 'USL_VAL' or level_name == 'DSL_VAL':
+                level = site[level]
+                m, c = pd.np.polyfit(x.dt.total_seconds().astype(float), level.values, 1)
+                #convert m to mm/day
+                m = (m * 86400 * 1000)
+                if level_name == 'USL_VAL':
+                    out[name][0]+=m
+                else:
+                    out[name][1]+=m
+                print(f"{level_name} gradient = {m:.2f} mm/d")
     print()
     i+=1
 
