@@ -1,4 +1,8 @@
 """Somewhat non-specific tools pertinent to the topology linkage and water balance project"""
+import io
+
+import requests
+
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
@@ -313,7 +317,7 @@ def invert_Q_flume(Q:Union[float, pd.Series], C_D:float, b:float) -> Union[float
 
 
 def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
-            alpha: float = 0.738, beta: float=0.282, adjust=False, show=False) -> float:
+            alpha: float = 0.738, beta: float=0.282, adjust=False, show=False, debug=False) -> float:
     """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
     and calculate the flow from that period. Wrapper for _Q_flume()
 
@@ -415,7 +419,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
     ax = df.plot()
     h1.plot(label="H1", ax=ax)
     h2.plot(label="H2", ax=ax)
-    print(df.isna().any().to_string())
+    if debug: print(df.isna().any().to_string())
 
     first = df.index.values[0]
     delta_t = [pd.Timedelta(td - first).total_seconds() for td in df.index.values]
@@ -432,7 +436,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
     label = f"QRC: INTEGRAL -> {QRC:.1f} ML"
     print(label)
     ax.legend()
-    plt.title = asset_code
+    plt.title(asset_code)
     if show:
         plt.show()
     else:
@@ -440,6 +444,43 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
 
     return FG
 
+def get_ET_RF(period_start:pd.datetime, period_end: pd.datetime, debug=False) -> Tuple[float, float]:
+
+    ET = 0.0
+    RF = 0.0
+
+    month = period_end.month
+    year = period_end.year
+
+    assert period_start < period_end
+
+    while True: #need a better break condition than that for handling errors
+        url = f"http://www.bom.gov.au/watl/eto/tables/nsw/griffith_airport/griffith_airport-{year}{month:02d}.csv"
+        s = requests.get(url).content
+
+        BOM_data = pd.read_csv(io.StringIO(s.decode('utf-8', errors='ignore')))
+        BOM_data = BOM_data[BOM_data.iloc[:, 0] == "GRIFFITH AIRPORT"]
+        BOM_data.iloc[:, 1] = pd.to_datetime(BOM_data.iloc[:, 1], format="%d/%m/%Y")
+        BOM_data = BOM_data.set_index([BOM_data.iloc[:, 1]])
+
+        if debug: print(BOM_data.to_string())
+
+        ET += pd.to_numeric(BOM_data.iloc[(BOM_data.index <= period_end) & (BOM_data.index >= period_start), 2]).sum()
+        RF += pd.to_numeric(BOM_data.iloc[(BOM_data.index <= period_end) & (BOM_data.index >= period_start), 3]).sum()
+
+
+        print(ET, RF)
+
+        if month == period_start.month and year == period_start.year:
+            break
+
+        if month > 1:
+            month -= 1
+        else:
+            month = 12
+            year -= 1
+
+    return ET, RF
 
 def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show=False, verbose=False) \
         -> Tuple[pd.DataFrame, list]:
@@ -503,7 +544,7 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
                 integral = max(integral) * 1000
 
                 if show:
-                    plt.title = f"{link_obj}"
+                    plt.title(f"{link_obj}")
                     ax2:plt.Axes = ax.twinx()
                     FLOW_df.plot(x="EVENT_TIME", y="EVENT_VALUE", label="FLOW", ax=ax2, color="#9467bd", alpha=0.2)
                     ax2.set_ylabel("FLOW (m3/s)")

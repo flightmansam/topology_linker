@@ -1,38 +1,42 @@
 """A water balance tool.
 Takes LVBC (described by a linkage table) and performs a water balance to create a system efficiency report"""
-from typing import Tuple
-
-
 
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
-import io
 import pandas as pd
-import requests
 import fginvestigation.extraction as ext
 from topology_linker.src.constants import DS_METER, DS_ESC, US_REG
-from topology_linker.src.utils import get_linked_ojects, Q_flume, volume
+from topology_linker.src.utils import get_linked_ojects, Q_flume, volume, get_ET_RF
 from topology_linker.projects.csv2pdftable import csv2pdftable
 
-#default values
-EXPORT = True #whether to create a waterbalance csv
-DEBUG = False # extra columns in output
-SHOW = True #whether to show charts for every meter as the balance is created
-TOPOLOGY = False #whether to make a .txt file of the branch topology
+# default values
+EXPORT = True  # whether to create a waterbalance csv
+DEBUG = False  # extra columns in output
+SHOW = True  # whether to show charts for every meter as the balance is created
+TOPOLOGY = False  # whether to make a .txt file of the branch topology
+
 
 def water_balance(branch_name, upstream_point, downstream_point, link_df,
                   period_start, period_end,
-                  use_regs,
+                  use_regs, area, out:list = [],
                   **kwargs) -> pd.DataFrame:
     """
 
     Parameters
     ----------
+    upstream_point
+    downstream_point
+    link_df
+    use_regs
+    kwargs
     branch_name
     period_end
     period_start
+    area: in m2
+    out: R.F.U (this is a list of object_no that will be the used when not calculating the total branch, just a subsection)
     args dict: overwriting the default values
+
 
     Returns
     -------
@@ -54,7 +58,6 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
                           usecols=['OBJECT_NO', 'LINK_OBJECT_NO', 'LINK_DESCRIPTION', 'POSITION'],
                           dtype={'OBJECT_NO': str, 'LINK_OBJECT_NO': str, 'LINK_DESCRIPTION': str})
 
-
     print("collecting topology...")
     link, link_list = get_linked_ojects(object_A=upstream_point,
                                         object_B=downstream_point,
@@ -63,13 +66,14 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     print(link)
     if use_regs:
         desc = [DS_METER, DS_ESC, US_REG]
-    else: desc = [DS_METER, DS_ESC]
-    link_list = link.get_all_of_desc(desc=desc)
-    lc = link.get_last_child()
+    else:
+        desc = [DS_METER, DS_ESC]
+    link_list = link.get_all_of_desc(desc=desc) #the link list is the list of nodes that will have their volumes calculated
+    lc = link.get_last_child() #for displaying the last node on the report export
 
     IN = Q_flume(asset_id=(link.object_name, link.object_no),
                  time_first=period_start, time_last=period_end,
-                 alpha=0.738, beta=0.282, adjust=True)
+                 alpha=0.738, beta=0.282, adjust=True, show=show, debug=debug)
 
     if export:
         if topology:
@@ -90,54 +94,36 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
              f"AND EVENT_TIME < TO_DATE('{period_end.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
              f" ORDER BY EVENT_TIME")
 
+    #This gets all of the totaliser and current flow data from the ORACLE database for all the object_ids in the link list
     obj_data = ext.get_data_ordb(query)
     obj_data = obj_data.astype({"OBJECT_NO": str, "EVENT_VALUE": float})
     obj_data = obj_data.set_index("OBJECT_NO")
 
+    #This gets the volume of each meter for the period.
+    # It will also collect the manual readings for meters where telemetered data can not be found
     out_df, vol_metadata = volume(obj_data, link_list, period_end, period_start, show=show)
     meters_not_checked, meters_not_read, manual_meters, telemetered, meters, meters_neg = vol_metadata
 
+    # For checking if there are major differences in totaliser and current flow integration
     out_df["diff"] = (out_df["RTU_totaliser (ML)"] - out_df["flow_integral (ML)"]) / out_df[
         ["RTU_totaliser (ML)", "flow_integral (ML)"]].max(axis=1) * 100
 
     print()
 
-    # MI fg calc for REGS
+    # MI fg calc for REGS, requires the object_id for these regs to also be described in link_list, i.e. use_regs = True
     REGS = link.get_all_of_desc(desc=[US_REG])
     for reg in REGS:
         out_df.loc[out_df.object_id == reg.object_no, "FG_calc (ML)"] = Q_flume((reg.object_name, reg.object_no),
-                                                                                period_start, period_end, adjust=True)
+                                                                                period_start, period_end, adjust=True, show=show, debug=debug)
 
-    ###EVAPORATION
+    # EVAPORATION AND RAINFALL
 
-    url = f"http://www.bom.gov.au/watl/eto/tables/nsw/griffith_airport/griffith_airport-{period_end.strftime('%Y%m')}.csv"
-    s = requests.get(url).content
-    prev_month = pd.read_csv(io.StringIO(s.decode('utf-8', errors='ignore')))
-    prev_month = prev_month[prev_month.iloc[:, 0] == "GRIFFITH AIRPORT"]
-    prev_month = prev_month.set_index([prev_month.iloc[:, 1]])
-    prev_month_ET = pd.to_numeric(prev_month[prev_month.index <= period_end.strftime("%d/%m/%Y")].iloc[:, 2]).sum()
-    prev_month_RF = pd.to_numeric(prev_month[prev_month.index <= period_end.strftime("%d/%m/%Y")].iloc[:, 3]).sum()
+    ET, RF = get_ET_RF(period_start, period_end, debug)
 
+    EVAP = ((area * ET) / 1000000) * 0.8 #0.8 is from the LVBC evaporation study
+    RAINFALL = (area * RF) / 1000000 #convert from mm3/Ha to ML
 
-    url = f"http://www.bom.gov.au/watl/eto/tables/nsw/griffith_airport/griffith_airport-{period_start.strftime('%Y%m')}.csv"
-    s = requests.get(url).content
-    this_month = pd.read_csv(io.StringIO(s.decode('utf-8', errors='ignore')))
-    this_month = this_month[this_month.iloc[:, 0] == "GRIFFITH AIRPORT"]  # strip out anything that's not a data column
-    this_month = this_month.set_index([this_month.iloc[:, 1]])  # set the index to the date
-    this_month_ET = pd.to_numeric(this_month[this_month.index >= period_start.strftime("%d/%m/%Y")].iloc[:,
-                               2]).sum()  # sum all of the ET values for the date in the range
-    this_month_RF = pd.to_numeric(this_month[this_month.index >= period_start.strftime("%d/%m/%Y")].iloc[:,
-                               3]).sum()  # sum all of the rainfall values for the date in the range
-
-    if debug: print(prev_month.to_string(), this_month.to_string())
-    ET = prev_month_ET + this_month_ET
-    RF = prev_month_RF + this_month_RF
-    area = 22000
-
-    EVAP = ((area * ET) / 1000000) * 0.8
-    RAINFALL = (area * RF) / 1000000
-
-    print(f"EVAP: {EVAP}, RAINFALL: {RAINFALL}")
+    print(f"EVAP: {EVAP:.1f}, RAINFALL: {RAINFALL:.1f}")
 
     if export:
 
@@ -154,11 +140,11 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
             REG = 0.0
 
         fh.writelines([
-            f"\nSystem Efficiency (%):, {((RTU + MAN) / (IN - REG)) * 100:.1f}\n",
+            f"\nSystem Efficiency (%):, {((RTU + MAN + REG) / IN) * 100:.1f}\n",
             "\n"])
 
         fh.writelines([f"Diverted (ML):, {IN:.1f}\n",
-                       f"Delivered (ML):, {RTU:.1f}\n",
+                       f"Delivered (ML):, {RTU+MAN+REG:.1f}\n",
                        f"Evaporative loss (ML):, {EVAP:.1f}\n",
                        f"Rainfall (ML):, {RAINFALL:.1f}\n",
                        f"Seepage loss (ML):, not yet implemented\n",
@@ -197,7 +183,6 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
         out_df[link.object_name] = pd.Series([link.object_no] + (4 * [pd.np.NaN]) + [IN])
         print(out_df.to_string())
 
-
         fh.close()
 
     if export:
@@ -207,7 +192,9 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
 
 
 if __name__ == "__main__":
+    #running this file on its own
     period_start = pd.datetime(year=2019, month=11, day=16, hour=00)
     period_end = pd.datetime(year=2020, month=2, day=17, hour=00)
-    json = water_balance("WARBURN", '26025', '40949', "../out/WARBURN_LINKED.csv", period_start, period_end, use_regs=True, show=False, export=True)
-    print(json)
+    out = water_balance("WARBURN", '26025', '40949', "../out/WARBURN_LINKED.csv", period_start, period_end,
+                         use_regs=True, area=22000, show=True, export=True)
+    print(out)
