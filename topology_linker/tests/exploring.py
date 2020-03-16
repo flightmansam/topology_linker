@@ -179,6 +179,7 @@ def set_shared_ylabel(a, ylabel, labelpad = 0.01):
 fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True)
 
 
+
 for link in link_list:
     if link in obj_data.index:
         df = obj_data.loc[link]

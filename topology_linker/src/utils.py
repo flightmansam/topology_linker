@@ -285,7 +285,7 @@ def get_manual_meter(obj_no: str, date: pd.datetime) -> Union[Tuple[float, pd.da
         return None, date
 
 
-def _Q_flume(h1: float, h2: float, alpha: float, beta: float, b: float) -> float:
+def _Q_flume(h1: float, h2: float, b: float, alpha: float = 0.738, beta: float=0.282) -> float:
     g = 9.80665  # (standard g)
 
     assert isinstance(h1, float) & \
