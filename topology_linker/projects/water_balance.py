@@ -160,19 +160,23 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
                            meters_not_read) == 0 else f"{len(meters_not_read)} manually read meters are missing up to date readings.\n"])
 
         if not debug:
-            cols = ["outlet", "RTU_totaliser (ML)", "manual_reading (ML)", "FG_calc (ML)"]
-            out_df[cols].to_csv(path_or_buf=fh, index=False, float_format='%.1f')
-        else:
-            out_df.to_csv(path_or_buf=fh, index=False, float_format='%.3f')
+            cols = ["outlet", "RTU_totaliser (ML)", "manual_reading (ML)"]
+            if use_regs:
+                cols.append("FG_calc (ML)")
+                total = f"Total, {RTU:.1f}, {MAN:.1f}, {REG:.1f}\n"
+            else:
+                total = f"Total, {RTU:.1f}, {MAN:.1f}\n"
 
-        if not debug:
+            out_df[cols].to_csv(path_or_buf=fh, index=False, float_format='%.1f')
+
             meters_not_read = out_df.loc[out_df["object_id"].isin(meters_not_read), "outlet"].values.tolist()
-            fh.writelines([f"Total, {RTU:.1f}, {MAN:.1f}, {REG:.1f}\n"
+            fh.writelines([total,
                            "\n",
                            f"time of data collection: {pd.datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
                            "\n",
                            f"meters not read:\n"] + [',' + meter + '\n' for meter in meters_not_read])
         else:
+            out_df.to_csv(path_or_buf=fh, index=False, float_format='%.3f')
             fh.writelines([f", Total, {RTU:.1f}, {INT:.1f}, {MAN:.1f}, , {REG:.1f}\n"
                            "\n",
                            f"time of data collection: {pd.datetime.now().strftime('%Y-%m-%d %H:%M')}\n",
