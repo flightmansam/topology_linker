@@ -1,4 +1,8 @@
 """Somewhat non-specific tools pertinent to the topology linkage and water balance project"""
+import io
+
+import requests
+
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
@@ -281,7 +285,7 @@ def get_manual_meter(obj_no: str, date: pd.datetime) -> Union[Tuple[float, pd.da
         return None, date
 
 
-def _Q_flume(h1: float, h2: float, alpha: float, beta: float, b: float) -> float:
+def _Q_flume(h1: float, h2: float, b: float, alpha: float = 0.738, beta: float=0.282) -> float:
     g = 9.80665  # (standard g)
 
     assert isinstance(h1, float) & \
@@ -313,8 +317,7 @@ def invert_Q_flume(Q:Union[float, pd.Series], C_D:float, b:float) -> Union[float
 
 
 def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
-            no_gates: int, gate_width: float,
-            alpha: float = 0.738, beta: float=0.282, adjust=False) -> float:
+            alpha: float = 0.738, beta: float=0.282, adjust=False, show=False, debug=False) -> float:
     """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
     and calculate the flow from that period. Wrapper for _Q_flume()
 
@@ -323,43 +326,26 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
     adjust : Whether the code will simply adjust the flume gate (False) or calculate flow completely (True)
     """
     oracle = True
-    show = True
 
     asset_code = asset_id[0]
     object_no = asset_id[1]
 
+    gate_widths = (f"SELECT SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE"
+                             f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
+                             f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
+                             f" WHERE " 
+                             f" OBJECT_NO in ('{object_no}') AND TAG_DESC LIKE 'Gate _ Width'"
+                             f" AND EVENT_TIME > TO_DATE('{time_first}', 'YYYY-MM-DD HH24:MI:SS')"
+                             f" AND EVENT_TIME < TO_DATE('{time_last}', 'YYYY-MM-DD HH24:MI:SS')"
+                             f" FETCH NEXT 100 ROWS ONLY")
+    gate_widths = get_data_ordb(gate_widths).dropna()
+    no_gates = len(gate_widths.TAG_DESC.unique())
+    gate_width = gate_widths.EVENT_VALUE.mean()
+
     tags = [f'Gate {i} Elevation' for i in range(1, no_gates + 1)] + \
            ['U/S Water Level', 'D/S Water Level', 'Current Flow']
     tags = tuple(tags)
-    # query = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE, SC_TAG.TAG_ID "
-    #          f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
-    #          f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
-    #          f" WHERE "
-    #          f" OBJECT_NO = {object_no} AND TAG_DESC in {tags}"
-    #          f" AND EVENT_TIME >= TO_DATE('{time_first.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
-    #          f" AND EVENT_TIME <= TO_DATE('{time_last.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
-    #          f" ORDER BY EVENT_TIME")
-    # orcl = get_data_ordb(query).set_index("EVENT_TIME")
-    # query = (
-    #     f" SELECT EVENT_TIME, Tags.TAG_DESC, EVENT_VALUE, Tags.TAG_ID"
-    #     f"    FROM EVENTS INNER JOIN Tags ON EVENTS.TAG_ID = Tags.TAG_ID"
-    #     f" WHERE OBJECT_NO = ( select OBJECT_NO from Objects WHERE ASSET_CODE = '{asset_code}') "
-    #     f"    AND TAG_DESC in {tags}"
-    #     f"    AND (EVENT_TIME >= '{time_first.strftime('%Y-%m-%d %H:%M:%S')}')"
-    #     f"    AND (EVENT_TIME <= '{time_last.strftime('%Y-%m-%d %H:%M:%S')}')"
-    # )
-    #
-    # sql = get_data_sql(query).set_index("EVENT_TIME")
-    # tag = 'U/S Water Level'
-    # sql = sql.loc[sql.TAG_DESC == tag, "EVENT_VALUE"]
-    # orcl = orcl.loc[orcl.TAG_DESC == tag, "EVENT_VALUE"]
-    # idx = orcl.loc[orcl == sql[0]].index[0]
-    # sql.index = sql.index + (idx - sql.index[0])
-    # orcl = orcl.reindex(sql.index, method='nearest')
-    # ax = (sql - orcl).plot(label="SQL - ORACLE")
-    # plt.legend()
-    # plt.show()
-    # plt.cla()
+
     if not oracle:
         utc = pd.datetime.utcnow().astimezone().utcoffset()
         time_last -= utc
@@ -367,7 +353,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
         query = (
             f" SELECT EVENT_TIME, Tags.TAG_DESC, EVENT_VALUE, Tags.TAG_ID"
             f"    FROM EVENTS INNER JOIN Tags ON EVENTS.TAG_ID = Tags.TAG_ID"
-            f" WHERE OBJECT_NO = ( select OBJECT_NO from Objects WHERE ASSET_CODE = '{asset_code}') "
+            f" WHERE OBJECT_NO = {object_no}) "
             f"    AND TAG_DESC in {tags}"
             f"    AND (EVENT_TIME >= '{time_first.strftime('%Y-%m-%d %H:%M:%S')}')"
             f"    AND (EVENT_TIME <= '{time_last.strftime('%Y-%m-%d %H:%M:%S')}')"
@@ -433,7 +419,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
     ax = df.plot()
     h1.plot(label="H1", ax=ax)
     h2.plot(label="H2", ax=ax)
-    print(df.isna().any().to_string())
+    if debug: print(df.isna().any().to_string())
 
     first = df.index.values[0]
     delta_t = [pd.Timedelta(td - first).total_seconds() for td in df.index.values]
@@ -450,7 +436,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
     label = f"QRC: INTEGRAL -> {QRC:.1f} ML"
     print(label)
     ax.legend()
-    plt.title = asset_code
+    plt.title(asset_code)
     if show:
         plt.show()
     else:
@@ -458,6 +444,43 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
 
     return FG
 
+def get_ET_RF(period_start:pd.datetime, period_end: pd.datetime, debug=False) -> Tuple[float, float]:
+
+    ET = 0.0
+    RF = 0.0
+
+    month = period_end.month
+    year = period_end.year
+
+    assert period_start < period_end
+
+    while True: #need a better break condition than that for handling errors
+        url = f"http://www.bom.gov.au/watl/eto/tables/nsw/griffith_airport/griffith_airport-{year}{month:02d}.csv"
+        s = requests.get(url).content
+
+        BOM_data = pd.read_csv(io.StringIO(s.decode('utf-8', errors='ignore')))
+        BOM_data = BOM_data[BOM_data.iloc[:, 0] == "GRIFFITH AIRPORT"]
+        BOM_data.iloc[:, 1] = pd.to_datetime(BOM_data.iloc[:, 1], format="%d/%m/%Y")
+        BOM_data = BOM_data.set_index([BOM_data.iloc[:, 1]])
+
+        if debug: print(BOM_data.to_string())
+
+        ET += pd.to_numeric(BOM_data.iloc[(BOM_data.index <= period_end) & (BOM_data.index >= period_start), 2]).sum()
+        RF += pd.to_numeric(BOM_data.iloc[(BOM_data.index <= period_end) & (BOM_data.index >= period_start), 3]).sum()
+
+
+        print(ET, RF)
+
+        if month == period_start.month and year == period_start.year:
+            break
+
+        if month > 1:
+            month -= 1
+        else:
+            month = 12
+            year -= 1
+
+    return ET, RF
 
 def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show=False, verbose=False) \
         -> Tuple[pd.DataFrame, list]:
@@ -521,7 +544,7 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
                 integral = max(integral) * 1000
 
                 if show:
-                    plt.title = f"{link_obj}"
+                    plt.title(f"{link_obj}")
                     ax2:plt.Axes = ax.twinx()
                     FLOW_df.plot(x="EVENT_TIME", y="EVENT_VALUE", label="FLOW", ax=ax2, color="#9467bd", alpha=0.2)
                     ax2.set_ylabel("FLOW (m3/s)")

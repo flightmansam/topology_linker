@@ -124,10 +124,19 @@ query1 = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_
                              f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
                              f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
                              f" WHERE " 
-                             f" OBJECT_NO in ('26025', '26054', '26104', '40949') AND TAG_DESC in ('Gate 1 Elevation', 'U/S Water Level', 'D/S Water Level', 'Gate 1 Width')"
+                             f" OBJECT_NO in ('26025') AND TAG_DESC LIKE 'Gate _ Width'"
                              f" AND EVENT_TIME > TO_DATE('{period_end}', 'YYYY-MM-DD HH24:MI:SS')"
                              f" AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
                              f" ORDER BY EVENT_TIME")
+
+query1 = (f"SELECT SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE"
+                             f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
+                             f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
+                             f" WHERE " 
+                             f" OBJECT_NO in ('26025') AND TAG_DESC LIKE 'Gate _ Width'"
+                             f" AND EVENT_TIME > TO_DATE('{period_end}', 'YYYY-MM-DD HH24:MI:SS')"
+                             f" AND EVENT_TIME < TO_DATE('{period_start}', 'YYYY-MM-DD HH24:MI:SS')"
+                             f" FETCH NEXT 100 ROWS ONLY")
 
 
 obj_data = ext.get_data_ordb(query1)
@@ -168,6 +177,7 @@ def set_shared_ylabel(a, ylabel, labelpad = 0.01):
 
 
 fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True)
+
 
 
 for link in link_list:

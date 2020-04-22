@@ -18,13 +18,12 @@ show = False #whether to show charts for every meter as the balance is created
 topology = False #whether to make a .txt file of the branch topology
 
 #I made a mistake when naming end and start a long time ago - they actually refer to their opposites
-period_end = pd.datetime(year=2020, month=1, day=16, hour=00)
-period_start = pd.datetime(year=2020, month=2, day=17, hour=00)
+period_end = pd.datetime(year=2020, month=2, day=16, hour=00)
+period_start = pd.datetime(year=2020, month=3, day=17, hour=00)
 
 file_name = f"../out/SysEff-{period_start.strftime('%Y%m%d')}_2"
 
-SCOTTS = Q_flume(asset_id=('RG-2-698', '29355'),time_first=period_end, time_last=period_start,
-                no_gates=4, gate_width=0.937)
+SCOTTS = Q_flume(asset_id=('RG-2-698', '29355'),time_first=period_end, time_last=period_start,adjust=True)
 
 #NORMALLY this df would be fetched by pulling down the linked table from SQL
 link_df = pd.read_csv("../out/LINKED.csv", usecols=['OBJECT_NO',  'LINK_OBJECT_NO', 'LINK_DESCRIPTION', 'POSITION'],
