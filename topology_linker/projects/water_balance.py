@@ -11,7 +11,7 @@ from topology_linker.src.utils import get_linked_ojects, Q_flume, volume, get_ET
 from topology_linker.projects.csv2pdftable import csv2pdftable
 
 # default values
-EXPORT = True  # whether to create a waterbalance csv
+EXPORT = False  # whether to create a waterbalance csv
 DEBUG = False  # extra columns in output
 SHOW = True  # whether to show charts for every meter as the balance is created
 TOPOLOGY = False  # whether to make a .txt file of the branch topology
@@ -69,12 +69,17 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     else:
         desc = [DS_METER, DS_ESC]
     link_list = link.get_all_of_desc(desc=desc) #the link list is the list of nodes that will have their volumes calculated
+    link_list = [l for l in link_list if l not in out]
     lc = link.get_last_child() #for displaying the last node on the report export
 
     IN = Q_flume(asset_id=(link.object_name, link.object_no),
                  time_first=period_start, time_last=period_end,
                  alpha=0.738, beta=0.282, adjust=True, show=show, debug=debug)
-
+    OUT = 0.0
+    for gate in out:
+        OUT += Q_flume(asset_id=( gate, gate),
+                 time_first=period_start, time_last=period_end,
+                 alpha=0.738, beta=0.282, adjust=True, show=show, debug=debug)
     if export:
         if topology:
             with open(f"{file_name}-topology.txt", 'w', encoding="utf-8") as topo:
@@ -140,7 +145,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
             REG = 0.0
 
         fh.writelines([
-            f"\nSystem Efficiency (%):, {((RTU + MAN + REG) / IN) * 100:.1f}\n",
+            f"\nSystem Efficiency (%):, {((RTU + MAN + REG) / (IN - OUT)) * 100:.1f}\n",
             "\n"])
 
         fh.writelines([f"Diverted (ML):, {IN:.1f}\n",
