@@ -1,0 +1,25 @@
+System Efficiency between TABBITA-1 (26215) and MORRELLS (26228)
+for period 2020-03-16 00:00 to 2020-04-17 00:00
+
+System Efficiency (%):, 93.1*
+
+Diverted (ML):, 274.3
+Delivered (ML):, 0.0
+Evaporative loss (ML):, 1.8
+Rainfall (ML):, 1.0
+Seepage loss (ML):, not yet implemented
+Unaccounted loss (ML):, 18.2
+
+Outlets
+Telemetered:, 1
+Manually read:, 0 
+Unmetered sites:, 0
+Total:, 1
+
+outlet,object_id,RTU_totaliser (ML),flow_integral (ML),manual_reading (ML),diff
+T1/1,64129,0.000,0.000,,
+, Total, 0.0, 0.0, 0.0, , 0.0
+
+time of data collection: 2020-04-23 14:29
+
+meters not read:

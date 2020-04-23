@@ -1,0 +1,27 @@
+System Efficiency between TYSONS (26165) and TABBITA-1 (26215)
+for period 2020-02-16 00:00 to 2020-03-17 00:00
+
+System Efficiency (%):, 116.8
+
+Diverted (ML):, 1021.5
+Delivered (ML):, 70.2
+Evaporative loss (ML):, 2.4
+Rainfall (ML):, 0.8
+Seepage loss (ML):, not yet implemented
+Unaccounted loss (ML):, -11.7
+
+Outlets
+Telemetered:, 3
+Manually read:, 0 
+Unmetered sites:, 0
+Total:, 3
+
+outlet,object_id,RTU_totaliser (ML),flow_integral (ML),manual_reading (ML),diff
+M2371/1,67666,20.486,19.894,,2.890
+M2371/3,67672,38.030,37.334,,1.831
+M2371/4,67675,11.727,11.107,,5.285
+, Total, 70.2, 68.3, 0.0, , 0.0
+
+time of data collection: 2020-04-23 14:29
+
+meters not read:

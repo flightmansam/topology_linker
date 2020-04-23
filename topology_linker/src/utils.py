@@ -458,15 +458,15 @@ def get_ET_RF(period_start:pd.datetime, period_end: pd.datetime, debug=False) ->
         url = f"http://www.bom.gov.au/watl/eto/tables/nsw/griffith_airport/griffith_airport-{year}{month:02d}.csv"
         s = requests.get(url).content
 
-        BOM_data = pd.read_csv(io.StringIO(s.decode('utf-8', errors='ignore')))
+        BOM_data = pd.read_csv(io.StringIO(s.decode('utf-8', errors='ignore')),na_values=[' '])
         BOM_data = BOM_data[BOM_data.iloc[:, 0] == "GRIFFITH AIRPORT"]
         BOM_data.iloc[:, 1] = pd.to_datetime(BOM_data.iloc[:, 1], format="%d/%m/%Y")
         BOM_data = BOM_data.set_index([BOM_data.iloc[:, 1]])
 
         if debug: print(BOM_data.to_string())
 
-        ET += pd.to_numeric(BOM_data.iloc[(BOM_data.index <= period_end) & (BOM_data.index >= period_start), 2]).sum()
-        RF += pd.to_numeric(BOM_data.iloc[(BOM_data.index <= period_end) & (BOM_data.index >= period_start), 3]).sum()
+        ET += pd.to_numeric(BOM_data.iloc[(BOM_data.index <= period_end) & (BOM_data.index >= period_start), 2]).dropna().sum()
+        RF += pd.to_numeric(BOM_data.iloc[(BOM_data.index <= period_end) & (BOM_data.index >= period_start), 3]).dropna().sum()
 
 
         print(ET, RF)
