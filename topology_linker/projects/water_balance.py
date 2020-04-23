@@ -157,7 +157,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
             f"\nSystem Efficiency (%):, {SE}\n",
             "\n"])
 
-        fh.writelines([f"Diverted (ML):, {IN:.1f}\n",
+        fh.writelines([f"Diverted (ML):, {IN:.1f} {OUT:.1f}\n",
                        f"Delivered (ML):, {RTU+MAN+REG:.1f}\n",
                        f"Evaporative loss (ML):, {EVAP:.1f}\n",
                        f"Rainfall (ML):, {RAINFALL:.1f}\n",
