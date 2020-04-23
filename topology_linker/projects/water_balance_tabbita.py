@@ -2,15 +2,38 @@
 from topology_linker.projects.water_balance import water_balance
 import pandas as pd
 
-from topology_linker.src.utils import subtract_one_month
 
-period_start = pd.datetime(year=2020, month=1, day=16, hour=00)
-period_end = pd.datetime(year=2020, month=2, day=17, hour=00)
-length = 925+514.41+747.72
-tysons = water_balance("TYSONS", '26165', '26215', "../out/TYSONS_LINKED.csv", period_start, period_end,area = length*8, use_regs=False, debug=True, show=True, out=['26215'])
+out = {
+    'tabbita':[],
+    'tysons':[],
+    'l_258_2':[]
+}
 
-length=2200
-tabbita = water_balance("TABBITA-1", '26215', '26228', "../out/TYSONS_LINKED.csv", period_start, period_end,area = length*8, use_regs=False, debug=True, show=True, out=['26228'])
+dates = pd.date_range('2019-06-16', periods=11, freq='M')
+for i, date in enumerate(dates[:-1]):
+    print(date)
+    period_start = pd.datetime(year=date.year, month=date.month, day=16, hour=00)
+    date = dates[i+1]
+    period_end = pd.datetime(year=date.year, month=date.month, day=17, hour=00)
 
-print()
+    export = True
+    length=2200
+    out['tabbita'].append(
+        water_balance("TABBITA-1", '26215', '26228', "../out/TYSONS_LINKED.csv",
+                      period_start, period_end,area = length*8, use_regs=False,
+                      debug=True, export=export, out=['26228'])[1])
+
+    length = 925+514.41+747.72
+    out['tysons'].append(
+        water_balance("TYSONS", '26165', '26215', "../out/TYSONS_LINKED.csv",
+                      period_start, period_end,area = length*8, use_regs=False,
+                      debug=True, export=export, out=['26215'])[1])
+
+    length = 1257.15 + 0.5*(2620.9) #lateral is only 4m
+    out['l_258_2'].append(
+        water_balance("L258-2", '26137', '26165', "../out/TYSONS_LINKED.csv",
+                      period_start, period_end,area = length*8, use_regs=True,
+                      debug=True, export=export, out=['26165'])[1])
+
+print(out)
 
