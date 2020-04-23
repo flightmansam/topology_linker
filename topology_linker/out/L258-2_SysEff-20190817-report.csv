@@ -3,7 +3,7 @@ for period 2019-07-16 00:00 to 2019-08-17 00:00
 
 System Efficiency (%):, 1.2
 
-Diverted (ML):, 634.0
+Diverted (ML):, 634.0 52.2
 Delivered (ML):, 6.9
 Evaporative loss (ML):, 0.9
 Rainfall (ML):, 0.4
@@ -22,8 +22,8 @@ L258-3,26585,6.702,6.848,,-2.127,6.901
 M2367A/3,67663,,,,,
 , Total, 0.0, 0.0, 0.0, , 6.9
 
-time of data collection: 2020-04-23 14:27
+time of data collection: 2020-04-23 15:04
 
 meters not read:
-,64120
 ,67663
+,64120

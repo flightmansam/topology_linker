@@ -37,3 +37,4 @@ for i, date in enumerate(dates[:-1]):
 
 print(out)
 
+pd.DataFrame(out, index = dates[1:]).to_csv('../out/SE_TABBITA.csv')
