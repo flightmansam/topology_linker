@@ -1,0 +1,29 @@
+System Efficiency between L258-2 (26137) and TYSONS (26165)
+for period 2019-09-16 00:00 to 2019-10-17 00:00
+
+System Efficiency (%):, 84.7
+
+Diverted (ML):, 897.1 879.5
+Delivered (ML):, 14.9
+Evaporative loss (ML):, 2.8
+Rainfall (ML):, 0.2
+Seepage loss (ML):, not yet implemented
+Unaccounted loss (ML):, 0.1
+
+Outlets
+Telemetered:, 1
+Manually read:, 2 
+Unmetered sites:, 0
+Total:, 3
+2 manually read meters are missing up to date readings.
+outlet,object_id,RTU_totaliser (ML),flow_integral (ML),manual_reading (ML),diff,FG_calc (ML)
+M2367A/1,64120,,,,,
+L258-3,26585,13.445,14.806,,-9.193,14.880
+M2367A/3,67663,,,,,
+, Total, 0.0, 0.0, 0.0, , 14.9
+
+time of data collection: 2020-04-23 15:05
+
+meters not read:
+,67663
+,64120

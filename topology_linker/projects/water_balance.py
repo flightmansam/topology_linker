@@ -13,7 +13,7 @@ from topology_linker.projects.csv2pdftable import csv2pdftable
 # default values
 EXPORT = False  # whether to create a waterbalance csv
 DEBUG = False  # extra columns in output
-SHOW = True  # whether to show charts for every meter as the balance is created
+SHOW = False  # whether to show charts for every meter as the balance is created
 TOPOLOGY = False  # whether to make a .txt file of the branch topology
 
 
@@ -69,7 +69,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     else:
         desc = [DS_METER, DS_ESC]
     link_list = link.get_all_of_desc(desc=desc) #the link list is the list of nodes that will have their volumes calculated
-    link_list = [l for l in link_list if l not in out]
+    link_list = [l for l in link_list if l.object_no not in out]
     lc = link.get_last_child() #for displaying the last node on the report export
 
     IN = Q_flume(asset_id=(link.object_name, link.object_no),
@@ -90,11 +90,14 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
             f"System Efficiency between {link.object_name} ({link.object_no}) and {lc.object_name} ({lc.object_no})\n",
             f"for period {period_start.strftime('%Y-%m-%d %H:%M')} to {period_end.strftime('%Y-%m-%d %H:%M')}\n"])
 
+    objects = tuple([l.object_no for l in link_list])
+    if len(objects) ==1:
+        objects = objects[0]
     query = (f"SELECT OBJECT_NO, SC_EVENT_LOG.EVENT_TIME, SC_EVENT_LOG.EVENT_VALUE, TAG_NAME "
              f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
              f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
              f" WHERE "
-             f" OBJECT_NO IN {tuple([l.object_no for l in link_list])} AND TAG_NAME IN ('FLOW_ACU_SR', 'FLOW_VAL')"
+             f" OBJECT_NO IN {objects} AND TAG_NAME IN ('FLOW_ACU_SR', 'FLOW_VAL')"
              f" AND EVENT_TIME > TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
              f"AND EVENT_TIME < TO_DATE('{period_end.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
              f" ORDER BY EVENT_TIME")
@@ -116,7 +119,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     print()
 
     # MI fg calc for REGS, requires the object_id for these regs to also be described in link_list, i.e. use_regs = True
-    REGS = link.get_all_of_desc(desc=[US_REG])
+    REGS = [l for l in link.get_all_of_desc(desc=[US_REG]) if l.object_no not in out]
     for reg in REGS:
         out_df.loc[out_df.object_id == reg.object_no, "FG_calc (ML)"] = Q_flume((reg.object_name, reg.object_no),
                                                                                 period_start, period_end, adjust=True, show=show, debug=debug)
@@ -130,30 +133,36 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
 
     print(f"EVAP: {EVAP:.1f}, RAINFALL: {RAINFALL:.1f}")
 
+    if use_regs:
+        RTU = out_df.loc[out_df["FG_calc (ML)"].isna(), 'RTU_totaliser (ML)'].sum()
+        INT = out_df.loc[out_df["FG_calc (ML)"].isna(), "flow_integral (ML)"].sum()
+        MAN = out_df.loc[out_df["FG_calc (ML)"].isna(), "manual_reading (ML)"].sum()
+        REG = out_df["FG_calc (ML)"].sum()
+
+    else:
+        RTU = out_df['RTU_totaliser (ML)'].sum()
+        INT = out_df["flow_integral (ML)"].sum()
+        MAN = out_df["manual_reading (ML)"].sum()
+        REG = 0.0
+
+    if (RTU + MAN + REG) == 0.0:
+        SE = f"{100 * (OUT / IN):.1f}*"
+    else:
+        SE = f"{((RTU + MAN + REG) / (IN - OUT)) * 100:.1f}"
+
+
     if export:
 
-        if use_regs:
-            RTU = out_df.loc[out_df["FG_calc (ML)"].isna(), 'RTU_totaliser (ML)'].sum()
-            INT = out_df.loc[out_df["FG_calc (ML)"].isna(), "flow_integral (ML)"].sum()
-            MAN = out_df.loc[out_df["FG_calc (ML)"].isna(), "manual_reading (ML)"].sum()
-            REG = out_df["FG_calc (ML)"].sum()
-
-        else:
-            RTU = out_df['RTU_totaliser (ML)'].sum()
-            INT = out_df["flow_integral (ML)"].sum()
-            MAN = out_df["manual_reading (ML)"].sum()
-            REG = 0.0
-
         fh.writelines([
-            f"\nSystem Efficiency (%):, {((RTU + MAN + REG) / (IN - OUT)) * 100:.1f}\n",
+            f"\nSystem Efficiency (%):, {SE}\n",
             "\n"])
 
-        fh.writelines([f"Diverted (ML):, {IN:.1f}\n",
+        fh.writelines([f"Diverted (ML):, {IN:.1f} {OUT:.1f}\n",
                        f"Delivered (ML):, {RTU+MAN+REG:.1f}\n",
                        f"Evaporative loss (ML):, {EVAP:.1f}\n",
                        f"Rainfall (ML):, {RAINFALL:.1f}\n",
                        f"Seepage loss (ML):, not yet implemented\n",
-                       f"Unaccounted loss (ML):, {IN + RAINFALL - (RTU + MAN + REG + EVAP):.1f}\n",
+                       f"Unaccounted loss (ML):, {IN + RAINFALL - (RTU + MAN + REG + EVAP) - OUT:.1f}\n",
                        "\n"])
 
         fh.writelines([f"Outlets\n",
@@ -197,7 +206,8 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     if export:
         csv2pdftable(f'{file_name}-report.csv', f"{file_name}-report")
 
-    return out_df
+
+    return out_df, SE
 
 
 if __name__ == "__main__":
