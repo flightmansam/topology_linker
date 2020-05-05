@@ -1,34 +1,33 @@
 import glob
 import pandas as pd
-from fginvestigation.extraction import get_data_sql
-
-
-def get_offset() -> int:
-    query = (
-        "SELECT MAX(TAG_ID) as MAX"
-        " from TAGS"
-    )
-    df = get_data_sql(query)
-
-    return int(df.MAX.values[0])
+# from fginvestigation.extraction import get_data_sql
+#
+#
+# def get_offset() -> int:
+#     query = (
+#         "SELECT MAX(TAG_ID) as MAX"
+#         " from TAGS"
+#     )
+#     df = get_data_sql(query)
+#
+#     return int(df.MAX.values[0])
 
 
 
 name = 'L258-2*.csv'
-name = 'TABBITA*.csv'
-name = 'TYSONS*report.csv'
+name = 'LVBC*.csv'
 csvs = glob.glob(name)
 csvs = [c for c in csvs if '*' not in c]
 print(csvs)
 
-division_object = 'tys'
+division_object = 'placeholder'
 
 spreadsheet = []
 database = []
 offset = 0 #max number in TAGS table
 cols = ["TAG_ID", "TAG_DESC", "TAG_UNITS", "OBJECT_NO"]
-tagd = ['System_Efficiency', 'Diverted', 'Delivered', 'Evaporative_loss', 'Rainfall', 'Seepage_loss', 'Unaccounted_loss', 'Unmetered_outlets', 'Calculation_time']
-tagu = ['percent', 'ML', 'ML','ML','ML','ML','ML','ML', 'time']
+tagd = ['System_Efficiency', 'Diverted', 'Delivered', 'Evaporative_loss', 'Rainfall', 'Seepage_loss', 'Unaccounted_loss', 'Calculation_time']
+tagu = ['percent', 'ML', 'ML','ML','ML','ML','ML', 'time']
 tagi = [i for i in range(offset + 1, len(tagd)+1)]
 obj = [division_object]*len(tagd)
 data = {}
@@ -43,6 +42,7 @@ for csv in csvs:
     reg = lines[0].split(') and')[0].split('(')[1].strip()
 
     time = lines[1].split('to')[0].split('period')[1].strip()
+    time = pd.to_datetime(time, format="%Y-%m-%d %H:%M")
     summary = pd.read_csv(csv, skiprows=3, nrows=6).transpose().reset_index()
     summary.columns = ["System_Efficiency", "Diverted", "Delivered", "Evaporative_loss", "Rainfall", "Seepage_loss",
                        "Unaccounted_loss"]
@@ -58,9 +58,9 @@ for csv in csvs:
     df.loc[:, "TAG_ID"] = None
 
     start, end = [index for index, line in enumerate(lines) if
-                  'outlet,object_id,RTU_totaliser' in line or ', Total,' in line]
+                  'RTU_totaliser' in line or ', Total,' in line]
     outlets = pd.read_csv(csv, skiprows=start, nrows=end - start - 1)
-    outlets.columns = ["Outlet", "object_id", "RTU_totaliser", "Flow_integral", "Manual_reading", "diff"]
+    outlets.columns = ["Outlet", "object_id", "RTU_totaliser", "Flow_integral", "Manual_reading"]+outlets.columns[5:].to_list()
 
     if ~tags.OBJECT_NO.isin(outlets.object_id).any():
         #ADD TAG_IDS to TAGS if not in TAGS
@@ -76,6 +76,7 @@ for csv in csvs:
             df.loc[len(df.index)+1, ["TAG_DESC","EVENT_VALUE", "TAG_ID"]] = [tagd, ev, tagi]
 
     runtime = [line.split('collection:')[1].strip() for line in lines if 'time of data collection:' in line][0]
+    runtime = pd.to_datetime(runtime, format="%Y-%m-%d %H:%M")
     df.loc[len(df.index)+1, ["TAG_DESC","EVENT_VALUE"]] = ["Calculation_time", runtime]
 
     start = [index for index, line in enumerate(lines) if 'meters not read:' in line][0]
@@ -94,8 +95,20 @@ for csv in csvs:
 tags.loc[tags.OBJECT_NO==division_object, "OBJECT_NO"] = reg
 division_object = reg
 
+
+
+objects =  pd.DataFrame(tags.OBJECT_NO.unique())
+objects.loc[:, "DATE_ADDED"] = pd.datetime(year=2019, month=12, day=1)
+objects.loc[:, "DATE_REMOVED"] = None
+objects.rename(columns={"0":"OBJECT_NO"}, inplace=True)
+
 spreadsheet = pd.concat(spreadsheet).sort_index()
 
 database = pd.concat((database))
+
+database.to_csv("EVENTS.csv", index=False)
+tags.to_csv("TAGS.csv", index=False)
+objects.to_csv("OBJECTS.csv", index=False)
+
 print(spreadsheet.to_string())
 # spreadsheet.to_csv(name)
