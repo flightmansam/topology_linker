@@ -14,7 +14,7 @@ import pandas as pd
 
 
 
-name = 'L258-2*.csv'
+name = 'L258-2.csv'
 name = 'LVBC*.csv'
 csvs = glob.glob(name)
 csvs = [c for c in csvs if '*' not in c]

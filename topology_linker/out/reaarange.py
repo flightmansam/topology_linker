@@ -14,9 +14,9 @@ def get_offset() -> int:
 
 
 
-name = 'L258-2*.csv'
-name = 'TABBITA*.csv'
-name = 'TYSONS*report.csv'
+name = 'L258-2.csv'
+name = 'TABBITA.csv'
+name = 'TYSONSreport.csv'
 csvs = glob.glob(name)
 csvs = [c for c in csvs if '*' not in c]
 print(csvs)
