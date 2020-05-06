@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 
 period_start = pd.datetime(year=2019, month=6, day=1, hour=00)
-period_start = pd.datetime(year=2020, month=5, day=1, hour=00)
+period_start = pd.datetime(year=2020, month=5, day=6, hour=00)
 period_end = pd.datetime(year=2020, month=3, day=11, hour=00)
 flow_thresh = 0.1 #ML/day
 gate_thresh = 2 #mm
