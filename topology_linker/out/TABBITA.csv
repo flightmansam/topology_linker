@@ -1,0 +1,11 @@
+Source,System Efficiency (%):,Diverted (ML):,Delivered (ML):,Evaporative loss (ML):,Rainfall (ML):,Seepage loss (ML):,Unaccounted loss (ML):,Out (ML):
+TABBITA-1_SysEff-20190717-report.csv, 0.1,17.3, 0.0, 0.7, 0.4, not yet implemented, 3.9,13.1
+TABBITA-1_SysEff-20190817-report.csv, 67.4*,39.3, 0.0, 0.8, 0.3, not yet implemented, 12.3,26.5
+TABBITA-1_SysEff-20190917-report.csv, 110.0*,287.9, 0.0, 1.6, 0.2, not yet implemented, -30.3,316.8
+TABBITA-1_SysEff-20191017-report.csv, 98.5*,831.0, 0.0, 2.4, 0.1, not yet implemented, 10.5,818.2
+TABBITA-1_SysEff-20191117-report.csv, 125.3*,794.2, 0.0, 2.9, 0.6, not yet implemented, -203.0,994.9
+TABBITA-1_SysEff-20191217-report.csv, 110.0*,1131.6, 0.0, 3.8, 0.1, not yet implemented, -116.9,1244.8
+TABBITA-1_SysEff-20200117-report.csv, 104.0*,2277.1, 0.0, 4.6, 0.0, not yet implemented, -96.4,2368.9
+TABBITA-1_SysEff-20200217-report.csv, 94.0*,854.1, 0.0, 3.5, 1.7, not yet implemented, 49.6,802.6
+TABBITA-1_SysEff-20200317-report.csv, 97.3*,961.3, 0.0, 2.4, 0.8, not yet implemented, 24.4,935.3
+TABBITA-1_SysEff-20200417-report.csv, 93.1*,274.3, 0.0, 1.8, 1.0, not yet implemented, 18.2,255.3
