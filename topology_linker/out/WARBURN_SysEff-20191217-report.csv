@@ -1,0 +1,34 @@
+System Efficiency between MITCHELLS (26025) and WARBURN SPLIT (40949)
+for period 2019-11-16 00:00 to 2019-12-17 00:00
+
+System Efficiency (%):, 68.8
+
+Diverted (ML):, 2080.2
+Delivered (ML):, 2016.9
+Evaporative loss (ML):, 4.7
+Rainfall (ML):, 0.1
+Seepage loss (ML):, not yet implemented
+Unaccounted loss (ML):, 58.6
+
+Outlets
+Telemetered:, 7
+Manually read:, 2 
+Unmetered sites:, 0
+Total:, 9
+1 manually read meters are missing up to date readings.
+outlet,RTU_totaliser (ML),manual_reading (ML),FG_calc (ML)
+M2362B/1,42.5,,
+M2364B/1,88.0,,
+B18/1,0.0,,
+B18A/P,,0.0,
+B18B/1,,,
+CH7BN-1,0.0,,0.0
+M2364C/1,9.0,,
+OT TABBITA,1455.6,,1474.0
+WARBURN SPLIT,399.2,,403.5
+Total, 139.4, 0.0, 1877.5
+
+time of data collection: 2020-03-10 13:26
+
+meters not read:
+,B18B/1

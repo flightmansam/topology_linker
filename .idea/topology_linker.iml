@@ -4,13 +4,14 @@
     <content url="file://$MODULE_DIR$/../FGinvestigation" />
     <content url="file://$MODULE_DIR$/../sluice_discharge_calculator" />
     <content url="file://$MODULE_DIR$" />
-    <orderEntry type="jdk" jdkName="Python 3.7 (leak_detection)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.7 (MI)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="myDocStringFormat" value="NumPy" />
   </component>
   <component name="TestRunnerService">
+    <option name="projectConfiguration" value="pytest" />
     <option name="PROJECT_TEST_RUNNER" value="pytest" />
   </component>
 </module>
