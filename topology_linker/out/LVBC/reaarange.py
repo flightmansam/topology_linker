@@ -24,11 +24,11 @@ division_object = 'placeholder'
 
 spreadsheet = []
 database = []
-offset = 0 #max number in TAGS table
+offset = 1503609 #max number in TAGS table
 cols = ["TAG_ID", "TAG_DESC", "TAG_UNITS", "OBJECT_NO"]
-tagd = ['System_Efficiency', 'Diverted', 'Delivered', 'Evaporative_loss', 'Rainfall', 'Seepage_loss', 'Unaccounted_loss', 'Calculation_time']
-tagu = ['percent', 'ML', 'ML','ML','ML','ML','ML', 'time']
-tagi = [i for i in range(offset + 1, len(tagd)+1)]
+tagd = ['System_Efficiency', 'Diverted', 'Delivered', 'Evaporative_loss', 'Rainfall', 'Seepage_loss', 'Unaccounted_loss']
+tagu = ['percent', 'ML', 'ML','ML','ML','ML','ML']
+tagi = [i for i in range(offset + 1, offset+len(tagd)+1)]
 obj = [division_object]*len(tagd)
 data = {}
 for c, item in zip(cols, [tagi, tagd, tagu, obj]):
@@ -62,22 +62,32 @@ for csv in csvs:
     outlets = pd.read_csv(csv, skiprows=start, nrows=end - start - 1)
     outlets.columns = ["Outlet", "object_id", "RTU_totaliser", "Flow_integral", "Manual_reading"]+outlets.columns[5:].to_list()
 
-    if ~tags.OBJECT_NO.isin(outlets.object_id).any():
-        #ADD TAG_IDS to TAGS if not in TAGS
-        for o in outlets.object_id:
-            for tagd in ["RTU_totaliser", "Flow_integral", "Manual_reading"]:
-                tags.loc[len(tags.index)+1, :] = [max(tags.TAG_ID) +1, tagd, 'ML', o]
-
     for o in outlets.object_id:
+
+        tagd = []
+        #first check to see that the correct tag are already in tags
+        if outlets.loc[outlets.object_id == o, ["RTU_totaliser", "Flow_integral", "Manual_reading"]].isna().all(axis=1).bool():
+            tagd = []
+        elif outlets.loc[outlets.object_id == o, ["RTU_totaliser", "Flow_integral"]].isna().all(axis=1).bool():
+            tagd = ["Manual_reading"]
+        else:
+            tagd = ["RTU_totaliser", "Flow_integral"]
+
+        # first check to see that the correct tag are already in tags
+        if tags.loc[(tags.OBJECT_NO == o) & tags.TAG_DESC.isin(tagd)].empty:
+            for tag in tagd:
+                tags.loc[len(tags.index) + 1, :] = [int(max(tags.TAG_ID) + 1), tag, 'ML', o]
+
         o = outlets.loc[outlets.object_id == o]
-        for tagd in ["RTU_totaliser", "Flow_integral", "Manual_reading"]:
-            ev = o[tagd].values[0]
-            tagi = tags.loc[(tags.OBJECT_NO == int(o.object_id)) & (tags.TAG_DESC == tagd), "TAG_ID"].values[0]
-            df.loc[len(df.index)+1, ["TAG_DESC","EVENT_VALUE", "TAG_ID"]] = [tagd, ev, tagi]
+
+        for tag in tagd:
+            ev = o[tag].values[0]
+            tagi = tags.loc[(tags.OBJECT_NO == int(o.object_id)) & (tags.TAG_DESC == tag), "TAG_ID"].values[0]
+            df.loc[len(df.index)+1, ["TAG_DESC","EVENT_VALUE", "TAG_ID"]] = [tag, ev, tagi]
 
     runtime = [line.split('collection:')[1].strip() for line in lines if 'time of data collection:' in line][0]
     runtime = pd.to_datetime(runtime, format="%Y-%m-%d %H:%M")
-    df.loc[len(df.index)+1, ["TAG_DESC","EVENT_VALUE"]] = ["Calculation_time", runtime]
+    #df.loc[len(df.index)+1, ["TAG_DESC","EVENT_VALUE"]] = ["Calculation_time", runtime]
 
     start = [index for index, line in enumerate(lines) if 'meters not read:' in line][0]
     not_read = 'None' if len(lines) == start + 1 else lines[start + 1:]
@@ -104,11 +114,21 @@ objects.rename(columns={"0":"OBJECT_NO"}, inplace=True)
 
 spreadsheet = pd.concat(spreadsheet).sort_index()
 
-database = pd.concat((database))
+database = pd.concat((database)).dropna()
 
-database.to_csv("EVENTS.csv", index=False)
+database = database.loc[~(database.EVENT_VALUE == ' not yet implemented')]
+database.loc[:, "EVENT_VALUE"] = database.EVENT_VALUE.astype(float)
+database.loc[:, "TAG_ID"] = database.TAG_ID.astype('int64')
+
+tags.loc[:, "TAG_ID"] = tags.TAG_ID.astype('int64')
+
+linkage = pd.read_csv("LINKAGE.csv")
+
+
+
+database.drop("TAG_DESC", axis=1).to_csv("EVENTS.csv", index=False)
 tags.to_csv("TAGS.csv", index=False)
-objects.to_csv("OBJECTS.csv", index=False)
+# objects.to_csv("OBJECTS.csv", index=False)
 
 print(spreadsheet.to_string())
 # spreadsheet.to_csv(name)
