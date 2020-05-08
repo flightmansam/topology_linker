@@ -21,31 +21,52 @@ period_start = pd.datetime(year=2019, month=6, day=1, hour=00)
 period_start = pd.datetime(year=2020, month=5, day=6, hour=00)
 period_end = pd.datetime(year=2020, month=3, day=11, hour=00)
 flow_thresh = 0.1 #ML/day
-gate_thresh = 2 #mm
-query = (
-    "SELECT tag.OBJECT_NO, ev.EVENT_VALUE"
-    " FROM SC_EVENT_LOG ev "
-    " JOIN SC_TAG tag ON ev.TAG_ID = tag.TAG_ID "
-    " JOIN OBJECT_ATTR_VALUE oav ON oav.OBJECT_NO = tag.OBJECT_NO"
-    " WHERE oav.OBJECT_TYPE IN ('7', '269', '90') "
-    " AND tag.TAG_NAME = 'FLOW_VAL'"
-    f" AND ev.EVENT_TIME > TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
-    f" AND ev.EVENT_VALUE <= {flow_thresh}"
-    f" ORDER BY ev.EVENT_TIME"
-)
+gate_thresh = 2.0
 
+#mm
+
+query =  (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE "
+                 f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
+                 f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
+                 f" WHERE "
+                 f" OBJECT_NO = '29355' AND TAG_NAME in ('G2_POS_VAL')"
+                 f" AND EVENT_TIME >= TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+                 f" ORDER BY EVENT_TIME")
 df = ext.get_data_ordb(query)
+s = [ '269', '90']
+# query = (
+#     "SELECT tag.OBJECT_NO, ev.EVENT_VALUE"
+#     " FROM SC_EVENT_LOG ev "
+#     " JOIN SC_TAG tag ON ev.TAG_ID = tag.TAG_ID "
+#     " JOIN OBJECT_ATTR_VALUE oav ON oav.OBJECT_NO = tag.OBJECT_NO"
+#     " WHERE oav.OBJECT_TYPE IN ('7') "
+#     " AND tag.TAG_NAME = 'FLOW_VAL'"
+#     f" AND ev.EVENT_TIME > TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+#     f" AND ev.EVENT_VALUE <= {flow_thresh}"
+#     f" ORDER BY ev.EVENT_TIME"
+# )
+
+# df = ext.get_data_ordb(query)
+df = pd.read_csv("df.csv")
+
+gates = [f'G{i}_POS_VAL' for i in range(7)]
 query = (
-    "SELECT tag.OBJECT_NO, ev.EVENT_VALUE"
+    "SELECT ev.EVENT_TIME, tag.OBJECT_NO, ev.EVENT_VALUE, tag.TAG_NAME"
     " FROM SC_EVENT_LOG ev "
     " JOIN SC_TAG tag ON ev.TAG_ID = tag.TAG_ID "
-    " WHERE tag.TAG_NAME = 'GATE_POS'"
+    f" WHERE tag.TAG_NAME in {tuple(gates)}"
     f" AND tag.OBJECT_NO in {tuple(df.OBJECT_NO.unique())}"
     f" AND ev.EVENT_TIME > TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
     f" AND ev.EVENT_VALUE <= {gate_thresh}"
     f" ORDER BY ev.EVENT_TIME"
 )
 objects = ext.get_data_ordb(query)
+filtered = []
+for obj in objects.OBJECT_NO.unique():
+    data = objects.loc[objects.OBJECT_NO == obj]
+    if data.pivot(index="EVENT_TIME", columns="TAG_NAME", values="EVENT_VALUE").mean(axis=1).le(gate_thresh/1000).all():
+        filtered.append(obj)
+
 
 
 print()
