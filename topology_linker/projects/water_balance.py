@@ -52,7 +52,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     show = kwargs["show"] if "show" in kwargs else SHOW
     topology = kwargs["topology"] if "topology" in kwargs else TOPOLOGY
 
-    file_name = f"../out/{branch_name}_SysEff-{period_end.strftime('%Y%m%d')}"
+    file_name = f"../out/LVBC/{branch_name}_SysEff-{period_end.strftime('%Y%m%d')}"
 
     link_df = pd.read_csv(link_df,
                           usecols=['OBJECT_NO', 'LINK_OBJECT_NO', 'LINK_DESCRIPTION', 'POSITION'],
