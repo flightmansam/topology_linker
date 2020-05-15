@@ -1,0 +1,11 @@
+Source,System Efficiency (%):,Diverted (ML):,Delivered (ML):,Evaporative loss (ML):,Rainfall (ML):,Seepage loss (ML):,Unaccounted loss (ML):,Out (ML):
+TYSONS_SysEff-20190717-report.csv, 8.2,56.4, 3.2, 0.6, 0.3, not yet implemented, 35.6,17.3
+TYSONS_SysEff-20190817-report.csv, 75.4*,52.2, 0.0, 0.8, 0.3, not yet implemented, 12.4,39.3
+TYSONS_SysEff-20190917-report.csv, 33.7,417.7, 43.8, 1.5, 0.2, not yet implemented, 84.6,287.9
+TYSONS_SysEff-20191017-report.csv, 145.8,879.5, 70.7, 2.4, 0.1, not yet implemented, -24.4,831.0
+TYSONS_SysEff-20191117-report.csv, 106.1,899.0, 111.2, 2.9, 0.6, not yet implemented, -8.7,794.2
+TYSONS_SysEff-20191217-report.csv, 31.9,1655.9, 167.3, 3.8, 0.1, not yet implemented, 353.3,1131.6
+TYSONS_SysEff-20200117-report.csv, 43.8,2709.5, 189.4, 4.6, 0.0, not yet implemented, 238.4,2277.1
+TYSONS_SysEff-20200217-report.csv, 100.9,1014.5, 161.9, 3.5, 1.7, not yet implemented, -3.3,854.1
+TYSONS_SysEff-20200317-report.csv, 116.8,1021.5, 70.2, 2.4, 0.8, not yet implemented, -11.7,961.3
+TYSONS_SysEff-20200417-report.csv, 65.0,326.2, 33.7, 1.8, 1.0, not yet implemented, 17.4,274.3
