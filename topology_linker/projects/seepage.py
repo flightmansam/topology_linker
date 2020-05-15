@@ -18,36 +18,37 @@ import matplotlib.pyplot as plt
 
 
 period_start = pd.datetime(year=2019, month=6, day=1, hour=00)
-period_start = pd.datetime(year=2020, month=5, day=6, hour=00)
+period_start = pd.datetime(year=2020, month=5, day=10, hour=00)
 period_end = pd.datetime(year=2020, month=3, day=11, hour=00)
 flow_thresh = 0.1 #ML/day
 gate_thresh = 2.0
 
 #mm
 
-query =  (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE "
-                 f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
-                 f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
-                 f" WHERE "
-                 f" OBJECT_NO = '29355' AND TAG_NAME in ('G2_POS_VAL')"
-                 f" AND EVENT_TIME >= TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
-                 f" ORDER BY EVENT_TIME")
-df = ext.get_data_ordb(query)
-s = [ '269', '90']
-# query = (
-#     "SELECT tag.OBJECT_NO, ev.EVENT_VALUE"
-#     " FROM SC_EVENT_LOG ev "
-#     " JOIN SC_TAG tag ON ev.TAG_ID = tag.TAG_ID "
-#     " JOIN OBJECT_ATTR_VALUE oav ON oav.OBJECT_NO = tag.OBJECT_NO"
-#     " WHERE oav.OBJECT_TYPE IN ('7') "
-#     " AND tag.TAG_NAME = 'FLOW_VAL'"
-#     f" AND ev.EVENT_TIME > TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
-#     f" AND ev.EVENT_VALUE <= {flow_thresh}"
-#     f" ORDER BY ev.EVENT_TIME"
-# )
+# query =  (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE "
+# #                  f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
+# #                  f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
+# #                  f" WHERE "
+# #                  f" OBJECT_NO = '29355' AND TAG_NAME in ('G2_POS_VAL')"
+# #                  f" AND EVENT_TIME >= TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+# #                  f" ORDER BY EVENT_TIME")
+# # df = ext.get_data_ordb(query)
+# # s = [ '269', '90']
 
-# df = ext.get_data_ordb(query)
-df = pd.read_csv("df.csv")
+query = (
+    " SELECT DISTINCT tag.OBJECT_NO"
+    " FROM SC_EVENT_LOG ev "
+    " JOIN SC_TAG tag ON ev.TAG_ID = tag.TAG_ID "
+    " JOIN OBJECT_ATTR_VALUE oav ON oav.OBJECT_NO = tag.OBJECT_NO"
+    " WHERE oav.OBJECT_TYPE IN ('7', '269', '90') "
+    " AND tag.TAG_NAME = 'FLOW_VAL'"
+    f" AND ev.EVENT_TIME > TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+    f" AND ev.EVENT_VALUE <= {flow_thresh}"
+
+)
+
+df = ext.get_data_ordb(query)
+#df = pd.read_csv("df.csv")
 
 gates = [f'G{i}_POS_VAL' for i in range(7)]
 query = (
@@ -63,11 +64,40 @@ query = (
 objects = ext.get_data_ordb(query)
 filtered = []
 for obj in objects.OBJECT_NO.unique():
+    #check to see all were below thresh
     data = objects.loc[objects.OBJECT_NO == obj]
     if data.pivot(index="EVENT_TIME", columns="TAG_NAME", values="EVENT_VALUE").mean(axis=1).le(gate_thresh/1000).all():
         filtered.append(obj)
 
+cutoff = 0.1 #ratio for only getting main regulators
 
+new_filtered = []
+
+for reg in filtered:
+    query = (
+        "SELECT AVG(EVENT_VALUE) FROM SC_EVENT_LOG ev "
+        " JOIN SC_TAG tag ON ev.TAG_ID = tag.TAG_ID "
+        f" WHERE tag.TAG_NAME = 'FLOW_VAL'"
+        f" AND tag.OBJECT_NO = {reg}"
+        f" AND ev.EVENT_TIME > TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+    )
+    ave = ext.get_data_ordb(query).iloc[0, 0]
+
+    if (flow_thresh / ave) < cutoff:
+        new_filtered.append(reg)
+
+query = (
+    "SELECT DISTINCT oav.OBJECT_NO, o.OBJECT_NAME, oav.OBJECT_TYPE, ot.OBJECT_DESC"
+    " FROM OBJECT_ATTR_VALUE oav JOIN"
+    " ATTRIBUTE_TYPE at ON oav.ATTRIBUTE_TYPE = at.ATTRIBUTE_TYPE JOIN"
+    " OBJECT_TYPE ot ON oav.OBJECT_TYPE = ot.OBJECT_TYPE JOIN"
+    " OBJECT o ON oav.OBJECT_NO = o.OBJECT_NO"
+    f" WHERE o.OBJECT_NO IN {tuple(new_filtered)}"
+)
+
+out = ext.get_data_ordb(query)
+out.astype({"OBJECT_NO":int, "OBJECT_TYPE":int})
+out.to_csv("low_flows.csv", index=False)
 
 print()
 #
