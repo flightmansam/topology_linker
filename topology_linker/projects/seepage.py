@@ -4,7 +4,7 @@ Takes a pool (described by a linkage table) and finds when flow is zero. It then
     * Seepage gradient"""
 import io
 from typing import Tuple
-
+import hetools.network_map
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
@@ -46,7 +46,7 @@ s = [ '269', '90']
 #     f" ORDER BY ev.EVENT_TIME"
 # )
 
-# df = ext.get_data_ordb(query)
+# df = ext.get_data_ordb(query
 df = pd.read_csv("df.csv")
 
 gates = [f'G{i}_POS_VAL' for i in range(7)]
