@@ -611,3 +611,62 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
     out_df["manual_reading (ML)"] = pd.to_numeric(out_df["manual_reading (ML)"])
 
     return out_df, [meters_not_checked, meters_not_read, manual_meters, telemetered, meters_not_read, meters_neg]
+
+def get_linkage_ordb(top_reg:int, bottom_reg:int = None)-> pd.DataFrame:
+    """
+    Given a regulator, this function will make a linkage of the topology
+    through the ORDB sequence numbers. If a bottom reg is not specified then the linkage will include all the regs in the bottom channel
+    Parameters
+    ----------
+
+    top_reg: Object number for the top regulator
+    bottom_reg: Object number for the bottom regulator, optional (will collect all objects until the end of the channel)
+
+    Returns
+    -------
+    A dataframe that gives all the objects in a network as linkage table
+
+    """
+
+    import hetools.network_map as nm
+
+    def get_reachFROMreg(object_no: int):
+        query = (
+            "SELECT oav.ATTRIBUTE_VALUE FROM OBJECT_ATTR_VALUE oav JOIN"
+            " ATTRIBUTE_TYPE at ON oav.ATTRIBUTE_TYPE = at.ATTRIBUTE_TYPE JOIN"
+            " OBJECT_TYPE ot ON oav.OBJECT_TYPE = ot.OBJECT_TYPE JOIN"
+            " OBJECT o ON oav.OBJECT_NO = o.OBJECT_NO"
+            f" WHERE at.ATTRIBUTE_DESC = 'CHANNEL NAME' AND o.OBJECT_NO = '{object_no}'")
+        return get_data_ordb(query).iloc[0, 0]
+
+    channel = get_reachFROMreg(int(top_reg))
+    print(channel)
+    all_regs = nm.get_regsINreach(channel)
+
+    # also get sequence numbers for the regs.
+    query = ("SELECT obr.SUB_OBJECT_NO as OBJECT_NO, o.OBJECT_NAME, obr.SUB_OBJECT_TYPE,ot.OBJECT_DESC, obr.SEQUENCE_NO"
+             " FROM OBJECT_RELATION obr "
+             "JOIN OBJECT o "
+             "ON o.OBJECT_NO = obr.SUB_OBJECT_NO"
+             " JOIN OBJECT_TYPE ot "
+             "ON ot.OBJECT_TYPE = obr.SUB_OBJECT_TYPE"
+             " JOIN RELATION_TYPE rt "
+             f"ON rt.RELATION_TYPE = obr.RELATION_TYPE WHERE obr.SUP_OBJECT_NO = 215103 and obr.SUB_OBJECT_NO IN {tuple(all_regs['OBJECT_NO'])}"
+             " ORDER BY SEQUENCE_NO")
+
+    seq = get_data_ordb(query)
+    all_regs = all_regs.merge(seq[['OBJECT_NO', 'SEQUENCE_NO']], how='inner', on='OBJECT_NO').sort_values('SEQUENCE_NO')
+
+    all_objects = nm.obj_in_bw(all_regs.OBJECT_NO.iloc[0], all_regs.OBJECT_NO.iloc[-1])
+
+    #refine all regs to have the lateral regs
+    all_regs = all_objects.loc[all_objects.OBJECT_DESC.isin(nm.regs)].copy()
+    # add channel name to the regs
+    all_regs['CH_NAME'] = all_regs.apply(
+        lambda x: nm.get_att_value(obj_no=x['OBJECT_NO'], att='CHANNEL NAME'), axis=1)
+    # add asset_code
+    all_regs['ASSET_CODE'] = all_regs.apply(
+        lambda x: nm.get_att_value(obj_no=x['OBJECT_NO'], att='ASSET CODE'), axis=1)
+
+    #remove dummy regs and then remove anything without a tag_id
+
