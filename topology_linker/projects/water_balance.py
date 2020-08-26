@@ -1,6 +1,6 @@
 """A water balance tool.
 Takes LVBC (described by a linkage table) and performs a water balance to create a system efficiency report"""
-
+#TODO this could be rewritten as a class to have better selectability before running the water_balance e.g specifying which D/S meters are flumes
 __author__ = "Samuel Hutchinson @ Murrumbidgee Irrigation"
 __email__ = "samuel.hutchinson@mirrigation.com.au"
 
@@ -19,7 +19,7 @@ TOPOLOGY = False  # whether to make a .txt file of the branch topology
 
 def water_balance(branch_name, upstream_point, downstream_point, link_df,
                   period_start, period_end,
-                  use_regs, area, out:list = [],
+                  use_regs, area, out:set = set(),
                   **kwargs) -> pd.DataFrame:
     """
 
@@ -34,7 +34,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     period_end
     period_start
     area: in m2
-    out: R.F.U (this is a list of object_no that will be the used when not calculating the total branch, just a subsection)
+    out: this is a set of object_nos that will be the used when not calculating the total branch
     args dict: overwriting the default values
 
 
@@ -52,11 +52,12 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     show = kwargs["show"] if "show" in kwargs else SHOW
     topology = kwargs["topology"] if "topology" in kwargs else TOPOLOGY
 
-    file_name = f"../out/LVBC/{branch_name}_SysEff-{period_end.strftime('%Y%m%d')}"
+    file_name = f"../out/LVBC/{branch_name}_SysEff-{period_end.strftime('%Y%m%d')}" #TODO clean this up
 
     link_df = pd.read_csv(link_df,
                           usecols=['OBJECT_NO', 'LINK_OBJECT_NO', 'LINK_DESCRIPTION', 'POSITION'],
-                          dtype={'OBJECT_NO': str, 'LINK_OBJECT_NO': str, 'LINK_DESCRIPTION': str})
+                          dtype={'OBJECT_NO': int, 'LINK_OBJECT_NO': int, 'LINK_DESCRIPTION': str, 'POSITION':int})
+    link_df = link_df.astype({'OBJECT_NO': str, 'LINK_OBJECT_NO': str, 'LINK_DESCRIPTION': str, 'POSITION':int})
 
     print("collecting topology...")
     link, link_list = get_linked_ojects(object_A=upstream_point,
@@ -72,14 +73,62 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     link_list = [l for l in link_list if l.object_no not in out]
     lc = link.get_last_child() #for displaying the last node on the report export
 
-    IN = Q_flume(asset_id=(link.object_name, link.object_no),
-                 time_first=period_start, time_last=period_end,
-                 alpha=0.738, beta=0.282, adjust=True, show=show, debug=debug)
+    objects = []
+    # run through all the children in the topology and classify the metering type so that the correct model is used TODO: refactor the models into a Class
+    for obj in [link]+link.get_all():
+        object_type = ext.get_data_ordb("SELECT DISTINCT ot.OBJECT_DESC FROM OBJECT_ATTR_VALUE oav JOIN"
+              " ATTRIBUTE_TYPE at ON oav.ATTRIBUTE_TYPE = at.ATTRIBUTE_TYPE JOIN"
+              " OBJECT_TYPE ot ON oav.OBJECT_TYPE = ot.OBJECT_TYPE JOIN"
+              " OBJECT o ON oav.OBJECT_NO = o.OBJECT_NO"
+             f" WHERE oav.OBJECT_NO = {obj.object_no}")
+        obj.object_type = "FLUME" if object_type.isin(["FLUMEGATE R", "FLUMEGATE M"]).all().bool() else "GENERAL"
+        objects.append(obj.object_no)
+        if obj.object_no in out:
+            #swap object no for Node of object in OUT (easier than doing a recursive search later on hehe)
+            out.discard(obj.object_no)
+            out.add(obj)
+
+
+    objects = tuple(objects)
+    if len(objects) == 1:
+        objects = objects[0] #I forgot how this solves any problem? tuple formating?
+    query = (f"SELECT OBJECT_NO, SC_EVENT_LOG.EVENT_TIME, SC_EVENT_LOG.EVENT_VALUE, TAG_NAME "
+             f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
+             f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
+             f" WHERE "
+             f" OBJECT_NO IN {objects} AND TAG_NAME IN ('FLOW_ACU_SR', 'FLOW_VAL')"
+             f" AND EVENT_TIME > TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+             f"AND EVENT_TIME < TO_DATE('{period_end.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+             f" ORDER BY EVENT_TIME")
+
+    # This gets all of the totaliser and current flow data from the ORACLE database for all the objects in the topology
+    obj_data = ext.get_data_ordb(query)
+    obj_data = obj_data.astype({"OBJECT_NO": str, "EVENT_VALUE": float})
+    obj_data = obj_data.set_index("OBJECT_NO") #TODO this is a stupid artifact and will be rewritten, see inside volume() function
+
+    IN = 0.0 #TODO allow more than one IN (MUST be within the same topology linkage)
+    if link.object_type == 'FLUME':
+        IN += Q_flume(asset_id=(link.object_name, link.object_no),
+                     time_first=period_start, time_last=period_end,
+                     alpha=0.738, beta=0.282, gamma = 1.74, adjust=False, show=show, debug=debug)
+        print(f"Used FLUME calcs for {link.object_name}")
+    else:
+        in_df, _ = volume(obj_data, [link], period_end, period_start, show=show)
+        IN += in_df['RTU_totaliser (ML)'].iloc[0]
+        print(f"Used GENERAL calcs for {link.object_name}")
+
     OUT = 0.0
     for gate in out:
-        OUT += Q_flume(asset_id=( gate, gate),
-                 time_first=period_start, time_last=period_end,
-                 alpha=0.738, beta=0.282, adjust=True, show=show, debug=debug)
+        if gate.object_type == 'FLUME':
+            OUT += Q_flume(asset_id=(gate.object_name, gate.object_no),
+                     time_first=period_start, time_last=period_end,
+                     alpha=0.738, beta=0.282, adjust=True, show=show, debug=debug)
+            print(f"Used FLUME calcs for {gate.object_name}")
+        else:
+            out_df, _ = volume(obj_data, [gate], period_end, period_start, show=show)
+            OUT += out_df['RTU_totaliser (ML)'].iloc[0]
+            print(f"Used GENERAL calcs for {gate.object_name}")
+
     if export:
         if topology:
             with open(f"{file_name}-topology.txt", 'w', encoding="utf-8") as topo:
@@ -90,22 +139,6 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
             f"System Efficiency between {link.object_name} ({link.object_no}) and {lc.object_name} ({lc.object_no})\n",
             f"for period {period_start.strftime('%Y-%m-%d %H:%M')} to {period_end.strftime('%Y-%m-%d %H:%M')}\n"])
 
-    objects = tuple([l.object_no for l in link_list])
-    if len(objects) ==1:
-        objects = objects[0]
-    query = (f"SELECT OBJECT_NO, SC_EVENT_LOG.EVENT_TIME, SC_EVENT_LOG.EVENT_VALUE, TAG_NAME "
-             f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
-             f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
-             f" WHERE "
-             f" OBJECT_NO IN {objects} AND TAG_NAME IN ('FLOW_ACU_SR', 'FLOW_VAL')"
-             f" AND EVENT_TIME > TO_DATE('{period_start.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
-             f"AND EVENT_TIME < TO_DATE('{period_end.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
-             f" ORDER BY EVENT_TIME")
-
-    #This gets all of the totaliser and current flow data from the ORACLE database for all the object_ids in the link list
-    obj_data = ext.get_data_ordb(query)
-    obj_data = obj_data.astype({"OBJECT_NO": str, "EVENT_VALUE": float})
-    obj_data = obj_data.set_index("OBJECT_NO")
 
     #This gets the volume of each meter for the period.
     # It will also collect the manual readings for meters where telemetered data can not be found

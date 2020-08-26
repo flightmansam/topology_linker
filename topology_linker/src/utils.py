@@ -1,5 +1,6 @@
 """Somewhat non-specific tools pertinent to the topology linkage and water balance project"""
 import io
+import re
 
 import requests
 
@@ -12,7 +13,6 @@ from fginvestigation.extraction import get_data_sql, get_data_ordb
 from topology_linker.src.node import Node
 import matplotlib.pyplot as plt
 from scipy import integrate
-
 
 def parse(file_path: str) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
     """Splits the csv into section 1. and section 2. as described in the readme
@@ -190,7 +190,7 @@ def not_monotonic(df: pd.DataFrame, col: str) -> pd.Series:
     """Will check if a column in a dataframe monotonic increasing (within a certain sensitivity)
     @:returns Series of booleans True if the monotonicity is broken at that index"""
     bool_array = []
-    sensitivity = 1.0  # this lowers the sensitivity of the filter (i.e. values within this range will still be considered as monotonic increasing)
+    sensitivity = 2.0  # this lowers the sensitivity of the filter (i.e. values within this range will still be considered as monotonic increasing)
     vals = df[col].values
     for index, val in enumerate(vals[:-1]):
         # check to see if value is greater than the next n values (this filters out random zeros and weird float decimal point changes)
@@ -232,12 +232,18 @@ def get_manual_meter(obj_no: str, date: pd.datetime) -> Union[Tuple[float, pd.da
          return q.loc[date, "METERED_USAGE"]
     """
     MAX_dist = pd.Timedelta(weeks=6)
-    q = ("Select DATE_EFFECTIVE, METERED_USAGE, METER_READING"
+    q = (" Select DATE_EFFECTIVE, METERED_USAGE, METER_READING"
          " From METER_READING"
-         f" WHERE SP_OBJECT_NO = '{obj_no}'")
+         f" WHERE SP_OBJECT_NO = '{obj_no}'"
+         " UNION ALL"
+         " Select DATE_EFFECTIVE, METERED_USAGE, METER_READING"
+         " From MIA_1920.METER_READING"
+         f" WHERE SP_OBJECT_NO = '{obj_no}'"
+         f" ORDER BY DATE_EFFECTIVE"
+         )
 
     q = get_data_ordb(q)
-
+    print()
     def check_distance(d: list):
         count = 0
         for td in d:
@@ -285,7 +291,7 @@ def get_manual_meter(obj_no: str, date: pd.datetime) -> Union[Tuple[float, pd.da
         return None, date
 
 
-def _Q_flume(h1: float, h2: float, b: float, alpha: float = 0.738, beta: float=0.282) -> float:
+def _Q_flume(h1: float, h2: float, b: float, alpha: float = 0.738, beta: float=0.282, gamma:float = 1.5) -> float:
     g = 9.80665  # (standard g)
 
     assert isinstance(h1, float) & \
@@ -300,7 +306,7 @@ def _Q_flume(h1: float, h2: float, b: float, alpha: float = 0.738, beta: float=0
     if h2 < 0.0:
         h2 = 0.0
 
-    C_D = alpha * (1.0 - (h2 / h1) ** 1.5) ** beta
+    C_D = alpha * (1.0 - (h2 / h1) ** gamma) ** beta
 
     Q = (2 / 3) * C_D * b * (2 * g) ** 0.5 * h1 ** 1.5
     return Q
@@ -317,7 +323,7 @@ def invert_Q_flume(Q:Union[float, pd.Series], C_D:float, b:float) -> Union[float
 
 
 def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
-            alpha: float = 0.738, beta: float=0.282, adjust=False, show=False, debug=False) -> float:
+            alpha: float = 0.738, beta: float=0.282, gamma: float = 1.5, adjust=False, show=False, debug=False) -> float:
     """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
     and calculate the flow from that period. Wrapper for _Q_flume()
 
@@ -410,6 +416,7 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
                          h2[idx],
                          alpha=alpha,
                          beta=beta,
+                         gamma=gamma,
                          b=no_gates * gate_width)
             Qs.append(Q)  # m3/
 
@@ -514,19 +521,19 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
         out["object_id"].append(link_obj.object_no)
         link_obj = link_obj.object_no
         if verbose: print(link_obj)
-        if link_obj in obj_data.index:
+        if link_obj in obj_data.index: #THIS IS SILLY #TODO rewrite index as EVENT_TIME and use obj_data.OBJECT_NO.unique()
             df = obj_data.loc[link_obj]
             if isinstance(df, pd.DataFrame):
                 # collect RTU data (primary source)
-                RTU_df = df.loc[df["TAG_NAME"] == 'FLOW_ACU_SR'].sort_values(by=["EVENT_TIME"])
-                if show: ax = RTU_df.plot(x="EVENT_TIME", y="EVENT_VALUE", label="RTU_SOURCE")
-                RTU_df = fix_resets(RTU_df)
-                if show: RTU_df.plot(x="EVENT_TIME", y="EVENT_VALUE", ax=ax, label="RTU_INTEGRAL")
+                RTU_df = df.loc[df["TAG_NAME"] == 'FLOW_ACU_SR'].sort_values(by=["EVENT_TIME"]) #TODO rewrite as pivot and use loc
+                if show and not RTU_df.empty: ax = RTU_df.plot(x="EVENT_TIME", y="EVENT_VALUE", label="RTU_SOURCE")
+                RTU_df = fix_resets(RTU_df) #TODO this function may need rewriting...
+                if show and not RTU_df.empty: RTU_df.plot(x="EVENT_TIME", y="EVENT_VALUE", ax=ax, label="RTU_INTEGRAL")
                 RTU = 0.0 if RTU_df.empty else (RTU_df["EVENT_VALUE"].max() - RTU_df.head(1)["EVENT_VALUE"].iat[
                     0]) * 1000
 
                 # calculate INTEGRAL (secondary source)
-                FLOW_df = df.loc[df["TAG_NAME"] == 'FLOW_VAL'].sort_values(by=["EVENT_TIME"])
+                FLOW_df = df.loc[df["TAG_NAME"] == 'FLOW_VAL'].sort_values(by=["EVENT_TIME"]) #TODO rewrite as pivot and use loc
                 neg = FLOW_df["EVENT_VALUE"].values < 0.0
                 if neg.any(): meters_neg.append(link_obj)
                 if FLOW_df.empty:
@@ -542,6 +549,9 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
                         integral = [0.0]
                     if show: integral.plot(ax=ax, label="INTEGRAL")
                 integral = max(integral) * 1000
+                if RTU_df.empty:
+                    RTU = integral
+                    print(f"No totaliser values for {link_obj}, using integral")
 
                 if show:
                     plt.title(f"{link_obj}")
@@ -612,6 +622,24 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
 
     return out_df, [meters_not_checked, meters_not_read, manual_meters, telemetered, meters_not_read, meters_neg]
 
+def get_reachFROMreg(object_no:Union[int, list]):
+    if isinstance(object_no, list):
+        query = (
+            "SELECT o.OBJECT_NO, oav.ATTRIBUTE_VALUE FROM OBJECT_ATTR_VALUE oav JOIN"
+            " ATTRIBUTE_TYPE at ON oav.ATTRIBUTE_TYPE = at.ATTRIBUTE_TYPE JOIN"
+            " OBJECT_TYPE ot ON oav.OBJECT_TYPE = ot.OBJECT_TYPE JOIN"
+            " OBJECT o ON oav.OBJECT_NO = o.OBJECT_NO"
+            f" WHERE at.ATTRIBUTE_DESC = 'CHANNEL NAME' AND o.OBJECT_NO in {tuple(object_no)}")
+        return get_data_ordb(query)
+    else:
+        query = (
+            "SELECT oav.ATTRIBUTE_VALUE FROM OBJECT_ATTR_VALUE oav JOIN"
+            " ATTRIBUTE_TYPE at ON oav.ATTRIBUTE_TYPE = at.ATTRIBUTE_TYPE JOIN"
+            " OBJECT_TYPE ot ON oav.OBJECT_TYPE = ot.OBJECT_TYPE JOIN"
+            " OBJECT o ON oav.OBJECT_NO = o.OBJECT_NO"
+            f" WHERE at.ATTRIBUTE_DESC = 'CHANNEL NAME' AND o.OBJECT_NO = '{object_no}'")
+        return get_data_ordb(query).iloc[0,0]
+
 def get_linkage_ordb(top_reg:int, bottom_reg:int = None)-> pd.DataFrame:
     """
     Given a regulator, this function will make a linkage of the topology
@@ -629,15 +657,6 @@ def get_linkage_ordb(top_reg:int, bottom_reg:int = None)-> pd.DataFrame:
     """
 
     import hetools.network_map as nm
-
-    def get_reachFROMreg(object_no: int):
-        query = (
-            "SELECT oav.ATTRIBUTE_VALUE FROM OBJECT_ATTR_VALUE oav JOIN"
-            " ATTRIBUTE_TYPE at ON oav.ATTRIBUTE_TYPE = at.ATTRIBUTE_TYPE JOIN"
-            " OBJECT_TYPE ot ON oav.OBJECT_TYPE = ot.OBJECT_TYPE JOIN"
-            " OBJECT o ON oav.OBJECT_NO = o.OBJECT_NO"
-            f" WHERE at.ATTRIBUTE_DESC = 'CHANNEL NAME' AND o.OBJECT_NO = '{object_no}'")
-        return get_data_ordb(query).iloc[0, 0]
 
     channel = get_reachFROMreg(int(top_reg))
     print(channel)
@@ -669,4 +688,26 @@ def get_linkage_ordb(top_reg:int, bottom_reg:int = None)-> pd.DataFrame:
         lambda x: nm.get_att_value(obj_no=x['OBJECT_NO'], att='ASSET CODE'), axis=1)
 
     #remove dummy regs and then remove anything without a tag_id
+    dummy_pattern = 'dummy'
+    dummy_regs = []
+    no_tag_list = []
+    for obj_no, ass_code in zip(all_regs.OBJECT_NO, all_regs.ASSET_CODE):
+        if ass_code:
+            if re.search(dummy_pattern, ass_code.lower()):
+                dummy_regs.append(obj_no)
+        if get_data_ordb(f"select * from SC_TAG where OBJECT_NO = {obj_no}").shape[0]<1: no_tag_list.append(obj_no)
 
+def get_name(object_no:Union[int, list]):
+    if isinstance(object_no, int):
+        object_no = f"('{object_no}')"
+    else:
+        object_no = tuple(object_no)
+    query = (
+        "SELECT oav.OBJECT_NO, o.OBJECT_NAME FROM OBJECT_ATTR_VALUE oav JOIN"
+        " ATTRIBUTE_TYPE at ON oav.ATTRIBUTE_TYPE = at.ATTRIBUTE_TYPE JOIN"
+        " OBJECT_TYPE ot ON oav.OBJECT_TYPE = ot.OBJECT_TYPE JOIN"
+        " OBJECT o ON oav.OBJECT_NO = o.OBJECT_NO"
+        f" WHERE at.ATTRIBUTE_DESC = 'ASSET CODE' AND oav.OBJECT_NO IN {object_no}")
+
+    df = get_data_ordb(query)
+    return df.OBJECT_NAME.to_list()

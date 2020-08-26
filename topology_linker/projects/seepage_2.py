@@ -23,6 +23,24 @@ period_start = pd.datetime(year=2020, month=5, day=15, hour=12)
 period_end = pd.datetime(year=2020, month=5, day=20, hour=9)
 show=False
 
+object_no = 97650
+
+query =(
+    "SELECT * FROM OBJECT_ATTR_VALUE oav JOIN"
+    " ATTRIBUTE_TYPE at ON oav.ATTRIBUTE_TYPE = at.ATTRIBUTE_TYPE JOIN"
+    " OBJECT_TYPE ot ON oav.OBJECT_TYPE = ot.OBJECT_TYPE JOIN"
+    " OBJECT o ON oav.OBJECT_NO = o.OBJECT_NO"
+    f" WHERE at.ATTRIBUTE_DESC = 'CHANNEL NAME' AND o.OBJECT_NO = '{object_no}'"
+)
+
+query = (f"SELECT DISTINCT SC_TAG.TAG_NAME "
+         f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
+         f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
+         f" WHERE "
+         f" OBJECT_NO = '{object_no}'")
+
+df = ext.get_data_ordb(query)
+print()
 def get_reachFROMreg(object_no:int):
     query = (
         "SELECT oav.ATTRIBUTE_VALUE FROM OBJECT_ATTR_VALUE oav JOIN"

@@ -106,12 +106,12 @@ spreadsheet = pd.concat(spreadsheet).sort_index()
 
 database = pd.concat((database))
 
-database.to_csv("EVENTS.csv", index=False)
-export_sqlserver(database, "EVENTS", if_exists='append')
-tags.to_csv("TAGS.csv", index=False)
-export_sqlserver(tags, "TAGS", if_exists='append')
-objects.to_csv("OBJECTS.csv", index=False)
-export_sqlserver(objects, "OBJECTS", if_exists='fail')
+# database.to_csv("EVENTS.csv", index=False)
+# export_sqlserver(database, "EVENTS", if_exists='append')
+# tags.to_csv("TAGS.csv", index=False)
+# export_sqlserver(tags, "TAGS", if_exists='append')
+# objects.to_csv("OBJECTS.csv", index=False)
+# export_sqlserver(objects, "OBJECTS", if_exists='fail')
 
 print(spreadsheet.to_string())
 # spreadsheet.to_csv(name)

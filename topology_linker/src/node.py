@@ -21,6 +21,7 @@ class Node:
         self.parent: Node = parent
         self.object_name = object_name
         self.object_description = object_description
+        self.object_type = None
         self.index = None
         #self.object_id = str(object_id)
         try:
@@ -115,7 +116,7 @@ class Node:
             return self.children[-1].get_last_child()
         return self
 
-    def get_all_of_desc(self, desc: Union[str, list] = DS_METER):
+    def get_all_of_desc(self, desc: Union[str, list] = DS_METER) -> list:
         """
         Gets all of the objects of "desc" from the current node (and all of the children of this node)
         :return: array of nodes (in no particular order)
@@ -128,6 +129,18 @@ class Node:
                 out.append(child)
             out += child.get_all_of_desc(desc)
         return out
+
+    def get_all(self) -> list:
+        """
+        Gets all of the objects from the current node (and all of the children of this node)
+        :return: array of nodes (in no particular order)
+        """
+        out = []
+        for child in self.children:
+            out.append(child)
+            out += child.get_all()
+        return out
+
 
 
 
