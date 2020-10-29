@@ -142,7 +142,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
 
     #This gets the volume of each meter for the period.
     # It will also collect the manual readings for meters where telemetered data can not be found
-    out_df, vol_metadata = volume(obj_data, link_list, period_end, period_start, show=show)
+    out_df, vol_metadata = volume(obj_data, link_list, period_start, period_end, show=show)
     meters_not_checked, meters_not_read, manual_meters, telemetered, meters, meters_neg = vol_metadata
 
     # For checking if there are major differences in totaliser and current flow integration

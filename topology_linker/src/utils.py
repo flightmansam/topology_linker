@@ -203,22 +203,22 @@ def not_monotonic(df: pd.DataFrame, col: str) -> pd.Series:
     return pd.Series(bool_array + [False])  # last value cannont be checked for monoticity
 
 
-def fix_resets(df: pd.DataFrame) -> pd.DataFrame:
-    """Resets are when the totaliser (EVENT_VALUE) in the RTU goes to zero and starts accumulating again
+def fix_resets(df: pd.DataFrame, col='EVENT_VALUE') -> pd.DataFrame:
+    """Resets are when the totaliser (col) in the RTU goes to zero and starts accumulating again
     This code recognises this condition, and ignores all other conditions that would cause data to go to zero
     Can account for unexpected zeros at end of time series, but NOT at beginning."""
     working_df = df.reset_index()
-    pattern = not_monotonic(working_df, "EVENT_VALUE")
+    pattern = not_monotonic(working_df, col)
 
     jumps_to_zero = working_df[pattern]  # this grabs the value just prior to whenever the pattern goes from high to low
 
     # address the latest jumps first (go backwards)
     for index, row in jumps_to_zero.iloc[::-1].iterrows():
-        if row["EVENT_VALUE"] != 0.0:
+        if row[col] != 0.0:
             # this is a jump! - we need to sum this number to all the dates ahead of it
-            slice = working_df.loc[working_df["EVENT_TIME"] > row["EVENT_TIME"], "EVENT_VALUE"]
-            slice += row["EVENT_VALUE"]
-            working_df.loc[working_df["EVENT_TIME"] > row["EVENT_TIME"], "EVENT_VALUE"] = slice
+            slice = working_df.loc[working_df.index > index, col]
+            slice += row[col]
+            working_df.loc[working_df.index> index, col] = slice
 
     return working_df
 
@@ -257,20 +257,12 @@ def get_manual_meter(object_no, period_start, period_end=None, users: list = Non
         if left_bound.index > 1:
             prv_idx = df.loc[left_bound.index - 1]
             # If the previous reading from the left bound is more than MAX_dist away we shouldn't include the left bound measurement.
-            if pd.Timedelta(left_bound.DATE_EFFECTIVE.values[0] - prv_idx.DATE_EFFECTIVE.values[0]) < MAX_dist:
-                # Instead we can interpolate the meter_reading
-                if prv_idx.METER_READING.values[0] > left_bound.METER_READING.values[0]:
-                    # (after accounting for reset totalisers)
-                    data.METER_READING = data.METER_READING + prv_idx.METER_READING.values[0]
-                data = data.append(prv_idx)
-                data = data.append({"DATE_EFFECTIVE": period_start, "METERED_USAGE": 0, "METER_READING": pd.np.NaN},
-                                   ignore_index=True)
-                data = data.set_index("DATE_EFFECTIVE").sort_index().interpolate().reset_index()
-                return (data.iloc[-1]["METER_READING"] - data.loc[data.DATE_EFFECTIVE == period_start, "METER_READING"]).values[0], data.iloc[-1]["DATE_EFFECTIVE"]
-
+            if pd.Timedelta(left_bound.DATE_EFFECTIVE.values[0] - prv_idx.DATE_EFFECTIVE.values[0]) > MAX_dist:
+                return data.iloc[1:].METERED_USAGE.sum(), period_end
             else:
                 return data.METERED_USAGE.sum(), period_end
         else:
+            print(f"{object_no} - Warning! Cannot ensure previous reading to left bound was within MAX_dist!")
             return data.METERED_USAGE.sum(), period_end
 
     else:
@@ -500,7 +492,7 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
 
     :param obj_data: all the data for the search in the period ('EVENT_TIME', 'FLOW_ACU_SR', 'FLOW_VAL')
     :param objects: list of object no.s that you would like to calculate volumes from obj_data
-    :param period_start: RFU
+    :param period_start:
     :param period_end:
     :param show: whether to open a plot for every meter calculated
     :param verbose: whether to show extra console output
@@ -593,7 +585,7 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
 
         else:
             # meter data not found in Events, maybe these are un telemetry or un metered flows
-            volume, date = get_manual_meter(link_obj, period_end)
+            volume, date = get_manual_meter(link_obj, period_start, period_end)
 
             if volume is None:
                 print(f"{link_obj} - No data")
