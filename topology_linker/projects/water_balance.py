@@ -110,7 +110,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     if link.object_type == 'FLUME':
         IN += Q_flume(asset_id=(link.object_name, link.object_no),
                      time_first=period_start, time_last=period_end,
-                     alpha=0.738, beta=0.282, gamma = 1.74, adjust=False, show=show, debug=debug)
+                     alpha=0.738, beta=0.282, gamma = 1.74, adjust=True, show=show, debug=debug)
         print(f"Used FLUME calcs for {link.object_name}")
     else:
         in_df, _ = volume(obj_data, [link], period_end, period_start, show=show)
@@ -167,21 +167,26 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     print(f"EVAP: {EVAP:.1f}, RAINFALL: {RAINFALL:.1f}")
 
     if use_regs:
+        DEL = out_df.loc[(out_df['diff'] > 50) & out_df["FG_calc (ML)"].isna(), "flow_integral (ML)"].sum() + \
+              out_df.loc[(out_df['diff'] <= 50) & out_df["FG_calc (ML)"].isna(), 'RTU_totaliser (ML)'].sum() + \
+              out_df.loc[out_df["FG_calc (ML)"].isna(), "manual_reading (ML)"].sum()
         RTU = out_df.loc[out_df["FG_calc (ML)"].isna(), 'RTU_totaliser (ML)'].sum()
         INT = out_df.loc[out_df["FG_calc (ML)"].isna(), "flow_integral (ML)"].sum()
         MAN = out_df.loc[out_df["FG_calc (ML)"].isna(), "manual_reading (ML)"].sum()
         REG = out_df["FG_calc (ML)"].sum()
 
     else:
+        # find when diff is very largely positive i.e. INT is << RTU
+        DEL = out_df.loc[out_df['diff'] > 50, "flow_integral (ML)"].sum() + out_df.loc[out_df['diff'] <= 50, 'RTU_totaliser (ML)'].sum() + out_df["manual_reading (ML)"].sum()
         RTU = out_df['RTU_totaliser (ML)'].sum()
         INT = out_df["flow_integral (ML)"].sum()
         MAN = out_df["manual_reading (ML)"].sum()
         REG = 0.0
 
-    if (RTU + MAN + REG) == 0.0:
+    if (DEL + REG) == 0.0:
         SE = f"{100 * (OUT / IN):.1f}*"
     else:
-        SE = f"{((RTU + MAN + REG) / (IN - OUT)) * 100:.1f}"
+        SE = f"{((DEL + REG) / (IN - OUT)) * 100:.1f}"
 
 
     if export:
@@ -191,11 +196,11 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
             "\n"])
 
         fh.writelines([f"Diverted (ML):, {IN:.1f} {OUT:.1f}\n",
-                       f"Delivered (ML):, {RTU+MAN+REG:.1f}\n",
+                       f"Delivered (ML):, {DEL+REG:.1f}\n",
                        f"Evaporative loss (ML):, {EVAP:.1f}\n",
                        f"Rainfall (ML):, {RAINFALL:.1f}\n",
                        f"Seepage loss (ML):, not yet implemented\n",
-                       f"Unaccounted loss (ML):, {IN + RAINFALL - (RTU + MAN + REG + EVAP) - OUT:.1f}\n",
+                       f"Unaccounted loss (ML):, {IN + RAINFALL - (DEL + REG + EVAP) - OUT:.1f}\n",
                        "\n"])
 
         fh.writelines([f"Outlets\n",
@@ -210,9 +215,9 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
             cols = ["outlet", "RTU_totaliser (ML)", "manual_reading (ML)"]
             if use_regs:
                 cols.append("FG_calc (ML)")
-                total = f"Total, {RTU:.1f}, {MAN:.1f}, {REG:.1f}\n"
+                total = f"Total, {DEL:.1f}, {MAN:.1f}, {REG:.1f}\n"
             else:
-                total = f"Total, {RTU:.1f}, {MAN:.1f}\n"
+                total = f"Total, {DEL:.1f}, {MAN:.1f}\n"
 
             out_df[cols].to_csv(path_or_buf=fh, index=False, float_format='%.1f')
 

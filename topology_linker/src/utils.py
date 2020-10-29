@@ -160,7 +160,8 @@ def get_linked_ojects(object_A: str, object_B: str, source: pd.DataFrame, encodi
         g = get(B_object_no, "LINK_OBJECT_NO").head(1)
         up_object_no = g["OBJECT_NO"][g.first_valid_index()]
         up_asset_code = query(str(up_object_no), by="OBJECT_NO")['SITE_NAME'][0]
-        up_description = g["LINK_DESCRIPTION"][0]
+        #up_description = g["LINK_DESCRIPTION"][0]
+        up_description = get(up_object_no, "LINK_OBJECT_NO").LINK_DESCRIPTION.iloc[0]
 
         upstream = Node()
         upstream.object_no = up_object_no
@@ -222,73 +223,66 @@ def fix_resets(df: pd.DataFrame) -> pd.DataFrame:
     return working_df
 
 
-def get_manual_meter(obj_no: str, date: pd.datetime) -> Union[Tuple[float, pd.datetime], Tuple[None, pd.datetime]]:
-    """Messy little function to collect the nearest meter reading to the date chosen
-    - pretty sure this function could by rewritten with a few pandas methods
-    e.g. q.set_index("DATE_EFFECTIVE", inplace=True)
-         q[date] = pd.NaN
-         q.fillna('nearest', inplace=True)
-         #check for distance of date and raise warning if needed
-         return q.loc[date, "METERED_USAGE"]
-    """
-    MAX_dist = pd.Timedelta(weeks=6)
-    q = (" Select DATE_EFFECTIVE, METERED_USAGE, METER_READING"
-         " From METER_READING"
-         f" WHERE SP_OBJECT_NO = '{obj_no}'"
-         " UNION ALL"
-         " Select DATE_EFFECTIVE, METERED_USAGE, METER_READING"
-         " From MIA_1920.METER_READING"
-         f" WHERE SP_OBJECT_NO = '{obj_no}'"
-         f" ORDER BY DATE_EFFECTIVE"
-         )
+def get_manual_meter(object_no, period_start, period_end=None, users: list = None):
 
-    q = get_data_ordb(q)
-    print()
-    def check_distance(d: list):
-        count = 0
-        for td in d:
-            if td > MAX_dist:
-                count += 1
-        if count > 0:
-            print(
-                f"Warning! For {count}/{len(d)} of the timestamps adjacent to {date}, have differences greater than {MAX_dist} for {obj_no}")
-            if count / len(d) == 1.0: return -1
-        return 1
+    MAX_dist = pd.Timedelta(weeks=2)
 
-    if not q.empty:
-        # get the value to the LHS and RHS of date
-        lhs = q.loc[q["DATE_EFFECTIVE"] < date].tail(1).reset_index(drop=True)
-        rhs = q.loc[q["DATE_EFFECTIVE"] >= date].head(1).reset_index(drop=True)
+    if period_end is None:
+        period_end = period_start + pd.Timedelta(weeks=4)
 
-        # find the nearest of the two provided both are of length 1
-        rtn = None
-        if not lhs.empty:
-            del_LHS = date - lhs["DATE_EFFECTIVE"][0]
+    if users is None:
+        users = list(get_data_ordb(
+            "SELECT username from all_users WHERE REGEXP_LIKE(username, 'MIA_([0123456789]{4}|PROD)')").USERNAME.unique())
+
+    # query to get all meter reading data, ever (or from predefined users)
+    query = f"SELECT DATE_EFFECTIVE, METERED_USAGE, METER_READING FROM {users[0]}.METER_READING" \
+            f" WHERE SP_OBJECT_NO = {object_no}"
+    if len(users) > 1:
+        for username in users[1:]:
+            query += " UNION ALL" \
+                     " Select DATE_EFFECTIVE, METERED_USAGE, METER_READING" \
+                     f" From {username}.METER_READING" \
+                     f" WHERE SP_OBJECT_NO = '{object_no}'"
+    query += "ORDER BY DATE_EFFECTIVE"
+
+    df = get_data_ordb(query)
+    if df.shape[0] == 0:
+        return None, period_start
+
+    data = df.loc[(df.DATE_EFFECTIVE <= period_end) & (df.DATE_EFFECTIVE >= period_start)]
+
+    # Ensure the previous reading from the left bound wasn't more than 6 weeks away
+    if data.shape[0] > 0:
+        left_bound = data.head(1)
+        if left_bound.index > 1:
+            prv_idx = df.loc[left_bound.index - 1]
+            # If the previous reading from the left bound is more than MAX_dist away we shouldn't include the left bound measurement.
+            if pd.Timedelta(left_bound.DATE_EFFECTIVE.values[0] - prv_idx.DATE_EFFECTIVE.values[0]) < MAX_dist:
+                # Instead we can interpolate the meter_reading
+                if prv_idx.METER_READING.values[0] > left_bound.METER_READING.values[0]:
+                    # (after accounting for reset totalisers)
+                    data.METER_READING = data.METER_READING + prv_idx.METER_READING.values[0]
+                data = data.append(prv_idx)
+                data = data.append({"DATE_EFFECTIVE": period_start, "METERED_USAGE": 0, "METER_READING": pd.np.NaN},
+                                   ignore_index=True)
+                data = data.set_index("DATE_EFFECTIVE").sort_index().interpolate().reset_index()
+                return (data.iloc[-1]["METER_READING"] - data.loc[data.DATE_EFFECTIVE == period_start, "METER_READING"]).values[0], data.iloc[-1]["DATE_EFFECTIVE"]
+
+            else:
+                return data.METERED_USAGE.sum(), period_end
         else:
-            rtn = rhs
-        if not rhs.empty:
-            del_RHS = rhs["DATE_EFFECTIVE"][0] - date
-        else:
-            rtn = lhs
-
-        if rtn is not None:
-            del_rtn = abs(date - rtn["DATE_EFFECTIVE"][0])
-            check = check_distance([del_rtn])
-            return -1 if check == -1 else rtn["METERED_USAGE"][0], rtn['DATE_EFFECTIVE'][0]
-
-        check = check_distance([del_LHS, del_RHS])
-        if check == -1: return -1, date
-
-        if del_LHS >= del_RHS:
-            # if the date is right in the middle of the readings better to overestimate than under?
-            return rhs["METERED_USAGE"][0], rhs['DATE_EFFECTIVE'][0]
-
-        else:
-            return lhs["METERED_USAGE"][0], lhs['DATE_EFFECTIVE'][0]
+            return data.METERED_USAGE.sum(), period_end
 
     else:
-        # No values for this meter
-        return None, date
+        # if no readings within bounds then find the nearest to the end date
+        nearest_idx = abs(df.DATE_EFFECTIVE - period_end).idxmin()
+
+        # Ensure the nearest reading wasn't more than MAX_dist away
+        if abs(df.loc[nearest_idx, "DATE_EFFECTIVE"] - period_end) < MAX_dist:
+            return df.loc[nearest_idx, "METERED_USAGE"], df.loc[nearest_idx, "DATE_EFFECTIVE"]
+        else:
+            return -1, period_end
+
 
 
 def _Q_flume(h1: float, h2: float, b: float, alpha: float = 0.738, beta: float=0.282, gamma:float = 1.5) -> float:
@@ -348,108 +342,119 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
     no_gates = len(gate_widths.TAG_DESC.unique())
     gate_width = gate_widths.EVENT_VALUE.mean()
 
-    tags = [f'Gate {i} Elevation' for i in range(1, no_gates + 1)] + \
-           ['U/S Water Level', 'D/S Water Level', 'Current Flow']
-    tags = tuple(tags)
+    if no_gates > 0:
 
-    if not oracle:
-        utc = pd.datetime.utcnow().astimezone().utcoffset()
-        time_last -= utc
-        time_first -= utc
-        query = (
-            f" SELECT EVENT_TIME, Tags.TAG_DESC, EVENT_VALUE, Tags.TAG_ID"
-            f"    FROM EVENTS INNER JOIN Tags ON EVENTS.TAG_ID = Tags.TAG_ID"
-            f" WHERE OBJECT_NO = {object_no}) "
-            f"    AND TAG_DESC in {tags}"
-            f"    AND (EVENT_TIME >= '{time_first.strftime('%Y-%m-%d %H:%M:%S')}')"
-            f"    AND (EVENT_TIME <= '{time_last.strftime('%Y-%m-%d %H:%M:%S')}')"
-        )
-        df = get_data_sql(query)
 
-    else:
-        query = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE, SC_TAG.TAG_ID "
-                 f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
-                 f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
-                 f" WHERE "
-                 f" OBJECT_NO = {object_no} AND TAG_DESC in {tags}"
-                 f" AND EVENT_TIME >= TO_DATE('{time_first.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
-                 f" AND EVENT_TIME <= TO_DATE('{time_last.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
-                 f" ORDER BY EVENT_TIME")
-        df = get_data_ordb(query)
+        tags = [f'Gate {i} Elevation' for i in range(1, no_gates + 1)] + \
+               ['U/S Water Level', 'D/S Water Level', 'Current Flow']
+        tags = tuple(tags)
 
-    #pivot and interpolate all the data
-    df = df.pivot("EVENT_TIME", "TAG_DESC", "EVENT_VALUE")
+        if not oracle:
+            utc = pd.datetime.utcnow().astimezone().utcoffset()
+            time_last -= utc
+            time_first -= utc
+            query = (
+                f" SELECT EVENT_TIME, Tags.TAG_DESC, EVENT_VALUE, Tags.TAG_ID"
+                f"    FROM EVENTS INNER JOIN Tags ON EVENTS.TAG_ID = Tags.TAG_ID"
+                f" WHERE OBJECT_NO = {object_no}) "
+                f"    AND TAG_DESC in {tags}"
+                f"    AND (EVENT_TIME >= '{time_first.strftime('%Y-%m-%d %H:%M:%S')}')"
+                f"    AND (EVENT_TIME <= '{time_last.strftime('%Y-%m-%d %H:%M:%S')}')"
+            )
+            df = get_data_sql(query)
 
-    cols = {
-        'U/S Water Level':"USL",
-        'D/S Water Level':"DSL",
-        'Current Flow': "QRC"
-    }
-    GATES = [f'Gate {i} Elevation' for i in range(1, no_gates + 1)]
+        else:
+            query = (f"SELECT SC_EVENT_LOG.EVENT_TIME, SC_TAG.TAG_DESC, SC_EVENT_LOG.EVENT_VALUE, SC_TAG.TAG_ID "
+                     f" FROM SC_EVENT_LOG INNER JOIN SC_TAG"
+                     f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
+                     f" WHERE "
+                     f" OBJECT_NO = {object_no} AND TAG_DESC in {tags}"
+                     f" AND EVENT_TIME >= TO_DATE('{time_first.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+                     f" AND EVENT_TIME <= TO_DATE('{time_last.strftime('%Y-%m-%d %H:%M:%S')}', 'YYYY-MM-DD HH24:MI:SS')"
+                     f" ORDER BY EVENT_TIME")
+            df = get_data_ordb(query)
 
-    df.rename(columns=cols, inplace=True)
+        #pivot and interpolate all the data
+        df = df.pivot("EVENT_TIME", "TAG_DESC", "EVENT_VALUE")
 
-    # #set zeros to NA and then interpolate
-    df.USL.loc[df.USL == 0.0] = pd.np.NaN
-    df.DSL.loc[df.DSL == 0.0] = pd.np.NaN
-    for gate in GATES:
-        df[gate].loc[df[gate] == 0.0] = pd.np.NaN
+        cols = {
+            'U/S Water Level':"USL",
+            'D/S Water Level':"DSL",
+            'Current Flow': "QRC"
+        }
+        df.rename(columns=cols, inplace=True)
 
-    df.interpolate(limit_direction='both', inplace=True)
+        #is there enough data?
+        if 'DSL' in df.columns and 'USL' in df.columns:
 
-    df["G_av"] = df[GATES].sum(axis=1) / no_gates
+            GATES = [f'Gate {i} Elevation' for i in range(1, no_gates + 1)]
 
-    df.QRC /= 86.4 # convert to m3/s
+            # #set zeros to NA and then interpolate
+            df.USL.loc[df.USL == 0.0] = pd.np.NaN
+            df.DSL.loc[df.DSL == 0.0] = pd.np.NaN
+            for gate in GATES:
+                df[gate].loc[df[gate] == 0.0] = pd.np.NaN
 
-    h1 = df.USL - df.G_av
-    h2 = df.DSL - df.G_av
+            df.interpolate(limit_direction='both', inplace=True)
 
-    if adjust:
-        #h2 = 0 if h2 < 0 else h2
-        h2.loc[h2 < 0] = 0
-        df["QMI"] = 1.0054495 * df.QRC * (1 - (h2/h1)) ** 0.0576
+            df["G_av"] = df[GATES].sum(axis=1) / no_gates
 
-    else:
-        Qs = []
-        for idx in df.index.values:
-            Q = _Q_flume(h1[idx],
-                         h2[idx],
-                         alpha=alpha,
-                         beta=beta,
-                         gamma=gamma,
-                         b=no_gates * gate_width)
-            Qs.append(Q)  # m3/
+            df.QRC /= 86.4 # convert to m3/s
 
-        df["QMI"] = Qs
+            h1 = df.USL - df.G_av
+            h2 = df.DSL - df.G_av
 
-    df["QMI"].interpolate(inplace=True)
-    ax = df.plot()
-    h1.plot(label="H1", ax=ax)
-    h2.plot(label="H2", ax=ax)
-    if debug: print(df.isna().any().to_string())
+            if adjust:
+                #h2 = 0 if h2 < 0 else h2
+                h2.loc[h2 < 0] = 0
+                df["QMI"] = 1.0054495 * df.QRC * (1 - (h2/h1)) ** 0.0576
 
-    first = df.index.values[0]
-    delta_t = [pd.Timedelta(td - first).total_seconds() for td in df.index.values]
-    FG_integral = integrate.cumtrapz(y=df["QMI"].values, x=delta_t) / 1000
-    FG_integral = pd.Series(data=FG_integral, index=df.index.values[1:]).transpose()
-    FG = max(FG_integral)
-    label = f"QMI: INTEGRAL -> {FG:.1f} ML"
-    print(label)
+            else:
+                Qs = []
+                for idx in df.index.values:
+                    Q = _Q_flume(h1[idx],
+                                 h2[idx],
+                                 alpha=alpha,
+                                 beta=beta,
+                                 gamma=gamma,
+                                 b=no_gates * gate_width)
+                    Qs.append(Q)  # m3/
 
-    delta_t = [pd.Timedelta(td - first).total_seconds() for td in df.QRC.index.values]
-    CF_integral = integrate.cumtrapz(y=df.QRC.values, x=delta_t) / 1000  # ?
-    CF_integral = pd.Series(data=CF_integral, index=df.QRC.index.values[1:]).transpose()
-    QRC = max(CF_integral)
-    label = f"QRC: INTEGRAL -> {QRC:.1f} ML"
-    print(label)
-    ax.legend()
-    plt.title(asset_code)
-    if show:
-        plt.show()
-    else:
-        plt.close()
+                df["QMI"] = Qs
 
-    return FG
+            df["QMI"].interpolate(inplace=True)
+            if show:
+                ax = df.plot()
+                h1.plot(label="H1", ax=ax)
+                h2.plot(label="H2", ax=ax)
+            if debug: print(df.isna().any().to_string())
+
+            first = df.index.values[0]
+            delta_t = [pd.Timedelta(td - first).total_seconds() for td in df.index.values]
+            FG_integral = integrate.cumtrapz(y=df["QMI"].values, x=delta_t) / 1000
+            FG_integral = pd.Series(data=FG_integral, index=df.index.values[1:]).transpose()
+            FG = max(FG_integral)
+            label = f"QMI: INTEGRAL -> {FG:.1f} ML"
+            print(label)
+
+            delta_t = [pd.Timedelta(td - first).total_seconds() for td in df.QRC.index.values]
+            CF_integral = integrate.cumtrapz(y=df.QRC.values, x=delta_t) / 1000  # ?
+            CF_integral = pd.Series(data=CF_integral, index=df.QRC.index.values[1:]).transpose()
+            QRC = max(CF_integral)
+            label = f"QRC: INTEGRAL -> {QRC:.1f} ML"
+            print(label)
+
+            if show:
+                ax.legend()
+                plt.title(asset_code)
+                plt.show()
+            else:
+                plt.close()
+
+            return FG
+        else: return None
+
+    else: return None
 
 def get_ET_RF(period_start:pd.datetime, period_end: pd.datetime, debug=False) -> Tuple[float, float]:
 
