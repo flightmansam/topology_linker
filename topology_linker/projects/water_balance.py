@@ -110,7 +110,7 @@ def water_balance(branch_name, upstream_point, downstream_point, link_df,
     if link.object_type == 'FLUME':
         IN += Q_flume(asset_id=(link.object_name, link.object_no),
                      time_first=period_start, time_last=period_end,
-                     alpha=0.738, beta=0.282, gamma = 1.74, adjust=True, show=show, debug=debug)
+                     alpha=0.738, beta=0.282, gamma = 1.74, adjust=True, show=show, debug=debug, timeseries=False)
         print(f"Used FLUME calcs for {link.object_name}")
     else:
         in_df, _ = volume(obj_data, [link], period_end, period_start, show=show)

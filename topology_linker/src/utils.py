@@ -309,13 +309,14 @@ def invert_Q_flume(Q:Union[float, pd.Series], C_D:float, b:float) -> Union[float
 
 
 def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
-            alpha: float = 0.738, beta: float=0.282, gamma: float = 1.5, adjust=False, show=False, debug=False) -> float:
+            alpha: float = 0.738, beta: float=0.282, gamma: float = 1.5, adjust=False, show=False, debug=False, timeseries=False) -> float:
     """Collect gate positions and U/S and D/S water level for Scotts from the Hydrology SQL table
     and calculate the flow from that period. Wrapper for _Q_flume()
 
     Parameters
     ----------alpha, beta=0.282
     adjust : Whether the code will simply adjust the flume gate (False) or calculate flow completely (True)
+    timeseries : Whether to return the Q values as a timeseries rather than an integrated volume (default)
     """
     oracle = True
 
@@ -327,8 +328,6 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
                              f" ON SC_EVENT_LOG.TAG_ID = SC_TAG.TAG_ID"
                              f" WHERE " 
                              f" OBJECT_NO in ('{object_no}') AND TAG_DESC LIKE 'Gate _ Width'"
-                             f" AND EVENT_TIME > TO_DATE('{time_first}', 'YYYY-MM-DD HH24:MI:SS')"
-                             f" AND EVENT_TIME < TO_DATE('{time_last}', 'YYYY-MM-DD HH24:MI:SS')"
                              f" FETCH NEXT 100 ROWS ONLY")
     gate_widths = get_data_ordb(gate_widths).dropna()
     no_gates = len(gate_widths.TAG_DESC.unique())
@@ -421,6 +420,8 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
                 h2.plot(label="H2", ax=ax)
             if debug: print(df.isna().any().to_string())
 
+            return df["QMI"]
+
             first = df.index.values[0]
             delta_t = [pd.Timedelta(td - first).total_seconds() for td in df.index.values]
             FG_integral = integrate.cumtrapz(y=df["QMI"].values, x=delta_t) / 1000
@@ -444,9 +445,13 @@ def Q_flume(asset_id: tuple, time_first: pd.datetime, time_last: pd.datetime,
                 plt.close()
 
             return FG
-        else: return None
+        else:
+            print(f"{asset_id}: Missing a level in columns: {df.columns}")
+            return None
 
-    else: return None
+    else:
+        print(f"{asset_id}: Could not get any gates in this period")
+        return None
 
 def get_ET_RF(period_start:pd.datetime, period_end: pd.datetime, debug=False) -> Tuple[float, float]:
 
@@ -620,6 +625,10 @@ def volume(obj_data: pd.DataFrame, objects: list, period_start, period_end, show
     return out_df, [meters_not_checked, meters_not_read, manual_meters, telemetered, meters_not_read, meters_neg]
 
 def get_reachFROMreg(object_no:Union[int, list]):
+    """
+    For every reg object_no in the input, return the Channel Name of the object.
+    If input is a list, a dataframe is returned. Else just the Channel name is returned as a string.
+    """
     if isinstance(object_no, list):
         query = (
             "SELECT o.OBJECT_NO, oav.ATTRIBUTE_VALUE FROM OBJECT_ATTR_VALUE oav JOIN"
